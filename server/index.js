@@ -8,6 +8,80 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// ─── INVITE USER (ส่งลิงค์ตั้งรหัสผ่าน) ───
+app.post('/api/users/:id/invite', async (req, res) => {
+  const { id } = req.params;
+  try {
+    // สร้าง token แบบ random
+    const token = Math.random().toString(36).substring(2) + Date.now().toString(36) + Math.random().toString(36).substring(2);
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 วัน
+
+    await pool.query(
+      'UPDATE users SET invite_token = $1, invite_expires_at = $2, invite_status = $3 WHERE id = $4',
+      [token, expires, 'pending', id]
+    );
+
+    const userResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+
+    const { name, email } = userResult.rows[0];
+    const inviteLink = `${req.headers.origin || 'https://financehub-virid.vercel.app'}/set-password?token=${token}`;
+
+    res.json({ success: true, invite_link: inviteLink, name, email, expires_at: expires });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── VERIFY INVITE TOKEN ───
+app.get('/api/invite/:token', async (req, res) => {
+  const { token } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT id, name, email, invite_status, invite_expires_at FROM users WHERE invite_token = $1',
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'ลิงค์ไม่ถูกต้องหรือหมดอายุแล้ว' });
+
+    const user = result.rows[0];
+    if (new Date() > new Date(user.invite_expires_at)) {
+      return res.status(400).json({ error: 'ลิงค์หมดอายุแล้ว กรุณาขอลิงค์ใหม่จากผู้ดูแลระบบ' });
+    }
+    res.json({ valid: true, name: user.name, email: user.email });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SET PASSWORD (พนักงานตั้งรหัสผ่านเอง) ───
+app.post('/api/set-password', async (req, res) => {
+  const { token, password } = req.body;
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' });
+  }
+  try {
+    const result = await pool.query(
+      'SELECT id, invite_expires_at FROM users WHERE invite_token = $1',
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'ลิงค์ไม่ถูกต้อง' });
+
+    const user = result.rows[0];
+    if (new Date() > new Date(user.invite_expires_at)) {
+      return res.status(400).json({ error: 'ลิงค์หมดอายุแล้ว' });
+    }
+
+    await pool.query(
+      'UPDATE users SET password_hash = $1, invite_token = NULL, invite_expires_at = NULL, invite_status = $2 WHERE id = $3',
+      [password, 'active', user.id]
+    );
+
+    res.json({ success: true, message: 'ตั้งรหัสผ่านสำเร็จ สามารถเข้าสู่ระบบได้แล้ว' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── LOGIN ───
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
@@ -17,11 +91,16 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
     }
     const user = result.rows[0];
-    const validPassword = password === 'admin1234' || user.password_hash === password;
-    if (!validPassword) {
+    // ตรวจสอบรหัสผ่าน: admin default หรือรหัสที่ตั้งเอง
+    const isAdmin = email === 'admin@financehub.com' && password === 'admin1234';
+    const hasSetPassword = user.password_hash && user.password_hash === password;
+    if (!isAdmin && !hasSetPassword) {
+      if (user.invite_status === 'pending' || !user.password_hash) {
+        return res.status(401).json({ error: 'กรุณาตั้งรหัสผ่านก่อนเข้าใช้งาน ตรวจสอบอีเมลของคุณ' });
+      }
       return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
     }
-    const { password_hash, ...safeUser } = user;
+    const { password_hash, invite_token, ...safeUser } = user;
     res.json({ success: true, user: safeUser });
   } catch (err) {
     res.status(500).json({ error: err.message });
