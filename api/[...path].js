@@ -1,9 +1,7 @@
-// Vercel Serverless Function Entry Point
+// Vercel Serverless Function - Catch all API routes
 import app from '../server/index.js';
 
 export default async function handler(req, res) {
-  // Vercel routes /api/xxx -> /api so we need to restore the real path
-  // The real path is available in the original URL
   return new Promise((resolve, reject) => {
     app(req, res);
     res.on('finish', resolve);

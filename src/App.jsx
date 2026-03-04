@@ -105,9 +105,26 @@ const LoginPage = ({ onLogin }) => {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      // Simple auth check - in production use real JWT
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        onLogin(data.user);
+      } else {
+        // Fallback สำหรับ demo
+        if (email === 'admin@financehub.com' && password === 'admin1234') {
+          onLogin({ name: 'Admin FinanceHub', role: 'เจ้าของธุรกิจ', email });
+        } else {
+          setError(data.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+        }
+      }
+    } catch {
+      // ถ้า API ไม่ตอบ ใช้ fallback
       if (email === 'admin@financehub.com' && password === 'admin1234') {
-        onLogin({ name: 'คุณแอดมิน', role: 'Super Admin', email });
+        onLogin({ name: 'Admin FinanceHub', role: 'เจ้าของธุรกิจ', email });
       } else {
         setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
       }
