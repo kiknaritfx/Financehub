@@ -12,6 +12,13 @@ import {
 } from 'lucide-react';
 import { businessAPI, transactionAPI, userAPI, reportAPI } from './api.js';
 
+// ─── INVITE API ───
+const inviteAPI = {
+  sendInvite: (id) => fetch(`/api/users/${id}/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()),
+  verifyToken: (token) => fetch(`/api/invite/${token}`).then(r => r.json()),
+  setPassword: (token, password) => fetch('/api/set-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password }) }).then(r => r.json()),
+};
+
 // ─── MOCK FALLBACK (ใช้ตอน dev ก่อนที่ DB จะพร้อม) ───
 const MOCK_BUSINESSES = [
   { id: 1, name: 'กาแฟ A', type: 'Cafe', income: 150000, expense: 80000, profit: 70000, growth: 12.5, petty_cash: 15000, petty_cash_max: 20000, status: 'Active', logo_type: 'emoji', icon: '☕' },
@@ -94,6 +101,104 @@ const Toast = ({ message, type = 'success', onClose }) => {
 };
 
 // ─── LOGIN PAGE ───
+// ─── SET PASSWORD PAGE (พนักงานตั้งรหัสผ่านจากลิงค์) ───
+const SetPasswordPage = ({ token }) => {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(true);
+  const [userInfo, setUserInfo] = useState(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    inviteAPI.verifyToken(token)
+      .then(data => { if (data.valid) setUserInfo(data); else setError(data.error || 'ลิงค์ไม่ถูกต้อง'); })
+      .catch(() => setError('ไม่สามารถตรวจสอบลิงค์ได้'))
+      .finally(() => setVerifying(false));
+  }, [token]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (password !== confirm) return setError('รหัสผ่านไม่ตรงกัน');
+    if (password.length < 6) return setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+    setLoading(true); setError('');
+    try {
+      const res = await inviteAPI.setPassword(token, password);
+      if (res.success) setSuccess(true);
+      else setError(res.error || 'เกิดข้อผิดพลาด');
+    } catch { setError('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง'); }
+    finally { setLoading(false); }
+  };
+
+  if (verifying) return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-800 to-slate-900 flex items-center justify-center">
+      <Loader2 size={40} className="text-white animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8">
+        <div className="text-center mb-8">
+          <div className="bg-blue-600 text-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <Lock size={32} />
+          </div>
+          <h1 className="text-2xl font-black text-slate-800">ตั้งรหัสผ่าน</h1>
+          <p className="text-slate-500 text-sm mt-1">FinanceHub</p>
+        </div>
+
+        {error && !userInfo && (
+          <div className="text-center">
+            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl mb-6 flex items-center gap-2 justify-center">
+              <AlertCircle size={18} />{error}
+            </div>
+            <a href="/" className="text-blue-600 font-bold text-sm hover:underline">กลับหน้าเข้าสู่ระบบ</a>
+          </div>
+        )}
+
+        {success ? (
+          <div className="text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Check size={32} className="text-green-600" />
+            </div>
+            <h3 className="text-xl font-black text-slate-800 mb-2">ตั้งรหัสผ่านสำเร็จ!</h3>
+            <p className="text-slate-500 text-sm mb-6">คุณสามารถเข้าสู่ระบบได้แล้ว</p>
+            <a href="/" className="block w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-center hover:bg-blue-700">
+              เข้าสู่ระบบ →
+            </a>
+          </div>
+        ) : userInfo && (
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="bg-slate-50 rounded-xl p-4">
+              <p className="text-xs text-slate-500">ยินดีต้อนรับ</p>
+              <p className="font-black text-slate-800">{userInfo.name}</p>
+              <p className="text-sm text-slate-500">{userInfo.email}</p>
+            </div>
+            {error && <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-sm flex items-center gap-2"><AlertCircle size={16} />{error}</div>}
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">รหัสผ่าน</label>
+              <div className="relative">
+                <input type={show ? 'text' : 'password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="อย่างน้อย 6 ตัวอักษร" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none pr-12" />
+                <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-3.5 text-slate-400">{show ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">ยืนยันรหัสผ่าน</label>
+              <input type={show ? 'text' : 'password'} required value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="พิมพ์รหัสผ่านอีกครั้ง" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <button type="submit" disabled={loading} className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-700 disabled:opacity-70 flex items-center justify-center gap-2">
+              {loading ? <Loader2 size={20} className="animate-spin" /> : <Lock size={20} />}
+              {loading ? 'กำลังบันทึก...' : 'ตั้งรหัสผ่าน'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const LoginPage = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('admin@financehub.com');
@@ -876,6 +981,8 @@ const UserManagement = ({ businesses, onSuccess }) => {
   const [selectedFeatures, setSelectedFeatures] = useState([]);
   const [accessLevel, setAccessLevel] = useState('Own Data');
   const [saving, setSaving] = useState(false);
+  const [inviteModal, setInviteModal] = useState(null); // { name, email, link }
+  const [invitingId, setInvitingId] = useState(null);
 
   useEffect(() => {
     userAPI.getAll()
@@ -884,9 +991,14 @@ const UserManagement = ({ businesses, onSuccess }) => {
       .finally(() => setLoading(false));
   }, []);
 
+  const ALL_FEATURES = FEATURE_LIST.map(f => f.id);
+
   const openAdd = () => {
     setEditingId(null); setName(''); setEmail(''); setPhone(''); setRole('พนักงาน');
-    setSelectedBizs([]); setSelectedFeatures([]); setAccessLevel('Own Data'); setIsDrawerOpen(true);
+    setSelectedBizs([]); 
+    setSelectedFeatures(ALL_FEATURES); // default เลือกทั้งหมด
+    setAccessLevel('Own Data'); 
+    setIsDrawerOpen(true);
   };
   const openEdit = (u) => {
     setEditingId(u.id); setName(u.name); setEmail(u.email); setPhone(u.phone || ''); setRole(u.role || 'พนักงาน');
@@ -898,23 +1010,48 @@ const UserManagement = ({ businesses, onSuccess }) => {
     await userAPI.delete(id).catch(() => {});
     setUsers(prev => prev.filter(u => u.id !== id));
   };
+
+  const handleInvite = async (user) => {
+    setInvitingId(user.id);
+    try {
+      const res = await inviteAPI.sendInvite(user.id);
+      if (res.invite_link) {
+        setInviteModal({ name: user.name, email: user.email, link: res.invite_link });
+        setUsers(prev => prev.map(u => u.id === user.id ? { ...u, invite_status: 'pending' } : u));
+      } else {
+        alert('เกิดข้อผิดพลาด: ' + (res.error || 'ไม่สามารถสร้างลิงค์ได้'));
+      }
+    } catch {
+      alert('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
+    } finally {
+      setInvitingId(null);
+    }
+  };
   const toggleBiz = (id) => setSelectedBizs(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const toggleFeat = (id) => setSelectedFeatures(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const handleSave = async (e) => {
-    e.preventDefault(); setSaving(true);
+    e.preventDefault(); 
+    setSaving(true);
     const data = { name, email, phone, role, business_ids: selectedBizs, features: selectedFeatures, access_level: accessLevel };
     try {
       if (editingId) {
         await userAPI.update(editingId, data);
         setUsers(prev => prev.map(u => u.id === editingId ? { ...u, ...data } : u));
+        setIsDrawerOpen(false);
         onSuccess('อัปเดตผู้ใช้สำเร็จ ✅');
       } else {
         const created = await userAPI.create(data);
         setUsers(prev => [...prev, created]);
+        setIsDrawerOpen(false);
         onSuccess('เพิ่มผู้ใช้สำเร็จ ✅');
+        // Auto-send invite link และแสดง modal
+        const res = await inviteAPI.sendInvite(created.id).catch(() => null);
+        if (res?.invite_link) {
+          setInviteModal({ name: created.name, email: created.email, link: res.invite_link });
+          setUsers(prev => prev.map(u => u.id === created.id ? { ...u, invite_status: 'pending' } : u));
+        }
       }
-      setIsDrawerOpen(false);
     } catch (err) {
       alert('เกิดข้อผิดพลาด: ' + err.message);
     } finally {
@@ -926,6 +1063,41 @@ const UserManagement = ({ businesses, onSuccess }) => {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+
+      {/* Invite Modal */}
+      {inviteModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Check size={32} className="text-green-600" />
+              </div>
+              <h3 className="text-xl font-black text-slate-800">ลิงค์พร้อมแล้ว!</h3>
+              <p className="text-slate-500 text-sm mt-1">ส่งลิงค์นี้ให้ <strong>{inviteModal.name}</strong> ตั้งรหัสผ่าน</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4 mb-4">
+              <p className="text-xs text-slate-500 mb-1">อีเมล</p>
+              <p className="font-bold text-slate-700">{inviteModal.email}</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+              <p className="text-xs text-blue-600 font-bold mb-2">🔗 ลิงค์ตั้งรหัสผ่าน (หมดอายุใน 7 วัน)</p>
+              <p className="text-xs text-blue-800 break-all font-mono">{inviteModal.link}</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { navigator.clipboard.writeText(inviteModal.link); onSuccess('คัดลอกลิงค์แล้ว ✅'); }}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
+              >
+                📋 คัดลอกลิงค์
+              </button>
+              <button onClick={() => setInviteModal(null)} className="px-5 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200">
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">จัดการสิทธิ์ผู้ใช้งาน</h2>
@@ -949,12 +1121,27 @@ const UserManagement = ({ businesses, onSuccess }) => {
                 <div>
                   <h3 className="font-black text-slate-800 text-lg">{user.name}</h3>
                   <p className="text-sm text-slate-500 mt-0.5">{user.email}</p>
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold mt-1.5 px-2 py-0.5 rounded-full ${
+                    user.invite_status === 'active' ? 'bg-green-100 text-green-700' :
+                    user.invite_status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                    'bg-slate-100 text-slate-500'
+                  }`}>
+                    {user.invite_status === 'active' ? '✅ ตั้งรหัสผ่านแล้ว' :
+                     user.invite_status === 'pending' ? '⏳ รอตั้งรหัสผ่าน' : '⭕ ยังไม่ได้ส่งลิงค์'}
+                  </span>
                 </div>
                 <Badge type={user.role === 'เจ้าของธุรกิจ' ? 'owner' : user.role === 'ผู้จัดการ' ? 'manager' : 'staff'}>{user.role}</Badge>
               </div>
               <div className="flex gap-2 pt-3 border-t border-slate-100">
                 <button onClick={() => openEdit(user)} className="flex-1 py-2.5 bg-blue-50 text-blue-600 text-sm font-bold rounded-xl hover:bg-blue-100 flex items-center justify-center gap-2 border border-blue-100">
                   <Settings size={16} /> จัดการสิทธิ์
+                </button>
+                <button
+                  onClick={() => handleInvite(user)}
+                  disabled={invitingId === user.id}
+                  className="flex-1 py-2.5 bg-green-50 text-green-700 text-sm font-bold rounded-xl hover:bg-green-100 flex items-center justify-center gap-2 border border-green-200 disabled:opacity-50"
+                >
+                  {invitingId === user.id ? <Loader2 size={16} className="animate-spin" /> : '🔗'} ส่งลิงค์
                 </button>
                 <button onClick={() => handleDelete(user.id, user.name)} className="px-4 bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-xl transition-colors">
                   <Trash2 size={16} />
@@ -983,20 +1170,30 @@ const UserManagement = ({ businesses, onSuccess }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-3">ธุรกิจที่เข้าถึงได้</label>
+            <label className="block text-sm font-bold text-slate-700 mb-3">ธุรกิจที่เข้าถึงได้ <span className="text-slate-400 font-normal">(เฉพาะที่เปิดใช้งาน)</span></label>
             <div className="space-y-2">
-              {businesses.map(biz => (
+              {businesses.filter(biz => biz.status === 'Active').map(biz => (
                 <label key={biz.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedBizs.includes(biz.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
                   <input type="checkbox" checked={selectedBizs.includes(biz.id)} onChange={() => toggleBiz(biz.id)} className="w-5 h-5 text-blue-600 rounded" />
                   <span className="text-xl">{biz.icon}</span>
                   <span className="text-sm font-bold text-slate-700">ร้าน{biz.name}</span>
                 </label>
               ))}
+              {businesses.filter(biz => biz.status === 'Active').length === 0 && (
+                <p className="text-sm text-slate-400 text-center py-3">ไม่มีธุรกิจที่เปิดใช้งาน</p>
+              )}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-3">สิทธิ์การใช้งาน</label>
+            <div className="flex justify-between items-center mb-3">
+              <label className="text-sm font-bold text-slate-700">สิทธิ์การใช้งาน</label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setSelectedFeatures(ALL_FEATURES)} className="text-xs font-bold text-blue-600 hover:underline">เลือกทั้งหมด</button>
+                <span className="text-slate-300">|</span>
+                <button type="button" onClick={() => setSelectedFeatures([])} className="text-xs font-bold text-slate-500 hover:underline">ล้างทั้งหมด</button>
+              </div>
+            </div>
             <div className="space-y-2">
               {FEATURE_LIST.map(f => (
                 <label key={f.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${selectedFeatures.includes(f.id) ? 'border-amber-400 bg-amber-50' : 'border-slate-200 hover:bg-slate-50'}`}>
@@ -1037,7 +1234,13 @@ export default function App() {
 
   const showToast = (msg, type = 'success') => setToast({ msg, type });
 
-  if (!user) return <LoginPage onLogin={setUser} />;
+  if (!user) {
+    // เช็คว่าเป็นหน้าตั้งรหัสผ่านหรือไม่
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) return <SetPasswordPage token={token} />;
+    return <LoginPage onLogin={setUser} />;
+  }
 
   const menuItems = [
     { id: 'dashboard', label: 'ภาพรวม', icon: LayoutDashboard },
