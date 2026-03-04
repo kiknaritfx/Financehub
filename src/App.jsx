@@ -1218,11 +1218,26 @@ const UserManagement = ({ businesses, onSuccess }) => {
 
 // ─── MAIN APP ───
 export default function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fh_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [currentView, setCurrentView] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [businesses, setBusinesses] = useState(MOCK_BUSINESSES);
   const [toast, setToast] = useState(null);
+
+  const handleLogin = (userData) => {
+    localStorage.setItem('fh_user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('fh_user');
+    setUser(null);
+  };
 
   // Load businesses on login
   useEffect(() => {
@@ -1235,11 +1250,10 @@ export default function App() {
   const showToast = (msg, type = 'success') => setToast({ msg, type });
 
   if (!user) {
-    // เช็คว่าเป็นหน้าตั้งรหัสผ่านหรือไม่
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     if (token) return <SetPasswordPage token={token} />;
-    return <LoginPage onLogin={setUser} />;
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   const menuItems = [
@@ -1294,7 +1308,7 @@ export default function App() {
         })}
       </nav>
       <div className="p-4 border-t border-slate-800">
-        <button onClick={() => setUser(null)} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors text-sm font-bold">
+        <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors text-sm font-bold">
           <LogOut size={18} /> ออกจากระบบ
         </button>
       </div>
