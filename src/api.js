@@ -29,7 +29,15 @@ export const transactionAPI = {
   },
   create: (data) => request('/transactions', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: (id) => request(`/transactions/${id}`, { method: 'DELETE' }),
+  delete: (id) => request(`/transactions/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
+}
+
+// ===== AUDIT LOGS =====
+export const auditAPI = {
+  getLogs: (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return request(`/audit-logs${q ? '?' + q : ''}`)
+  },
 }
 
 // ===== USERS =====

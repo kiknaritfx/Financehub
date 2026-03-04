@@ -10,11 +10,11 @@ import {
   Phone, Shield, Lightbulb, CheckSquare, Lock, User, CalendarDays,
   Loader2
 } from 'lucide-react';
-import { businessAPI, transactionAPI, userAPI, reportAPI } from './api.js';
+import { businessAPI, transactionAPI, userAPI, reportAPI, auditAPI } from './api.js';
 
 // ─── INVITE API ───
 const inviteAPI = {
-  sendInvite: (id) => fetch(`/api/users/${id}/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()),
+  sendInvite: (id) => fetch(`/api/users/${id}/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Error'); return d; }),
   verifyToken: (token) => fetch(`/api/invite/${token}`).then(r => r.json()),
   setPassword: (token, password) => fetch('/api/set-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password }) }).then(r => r.json()),
 };
@@ -685,6 +685,9 @@ const Transactions = ({ businesses }) => {
   const [editAmount, setEditAmount] = useState('');
   const [editNote, setEditNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [logModal, setLogModal] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
   const fmt = (n) => new Intl.NumberFormat('th-TH').format(Number(n) || 0);
   const activeBiz = businesses.filter(b => b.status === 'Active');
 
@@ -697,6 +700,16 @@ const Transactions = ({ businesses }) => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const openLog = async () => {
+    setLogModal(true);
+    setLogsLoading(true);
+    try {
+      const data = await auditAPI.getLogs({ limit: 100 });
+      setLogs(Array.isArray(data) ? data : []);
+    } catch { setLogs([]); }
+    finally { setLogsLoading(false); }
+  };
 
   const handleDelete = async (id) => {
     try {
@@ -720,7 +733,7 @@ const Transactions = ({ businesses }) => {
     setSaving(true);
     try {
       await transactionAPI.update(editModal.id, { category: editCategory, amount: Number(editAmount), note: editNote });
-      setTxns(prev => prev.map(t => t.id === editModal.id ? { ...t, category: editCategory, amount: Number(editAmount), note: editNote } : t));
+      setTxns(prev => prev.map(t => t.id === editModal.id ? { ...t, category: editCategory, amount: Number(editAmount), note: editNote, is_edited: true } : t));
       setEditModal(null);
     } catch (err) {
       alert('แก้ไขไม่สำเร็จ: ' + err.message);
@@ -736,6 +749,8 @@ const Transactions = ({ businesses }) => {
       && (!filterType || t.type === filterType);
   });
 
+  const actionLabel = (a) => a === 'edit' ? '✏️ แก้ไข' : a === 'delete' ? '🗑 ลบ' : '➕ เพิ่ม';
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -743,10 +758,35 @@ const Transactions = ({ businesses }) => {
           <h2 className="text-2xl font-bold text-slate-800">รายการธุรกรรม (Transactions)</h2>
           <p className="text-slate-500 text-sm mt-1">ประวัติการรับ-จ่ายทั้งหมด</p>
         </div>
-        <button onClick={load} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-md">
-          <Download size={16} /> Refresh
+        <button onClick={openLog} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-md">
+          <History size={16} /> Log
         </button>
       </div>
+
+      {/* Log Modal */}
+      <Modal isOpen={logModal} onClose={() => setLogModal(false)} title="ประวัติการดำเนินการ (Audit Log)">
+        <div className="space-y-2 max-h-[60vh] overflow-y-auto py-2">
+          {logsLoading ? <div className="flex justify-center py-8"><Spinner /></div> :
+           logs.length === 0 ? <p className="text-center text-slate-400 py-8">ยังไม่มีประวัติ</p> :
+           logs.map(log => (
+            <div key={log.id} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm ${log.action === 'edit' ? 'bg-blue-100' : log.action === 'delete' ? 'bg-rose-100' : 'bg-emerald-100'}`}>
+                {log.action === 'edit' ? '✏️' : log.action === 'delete' ? '🗑' : '➕'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-sm text-slate-800">{actionLabel(log.action)}</span>
+                  <span className="text-xs text-slate-400 shrink-0">{new Date(log.created_at).toLocaleString('th-TH')}</span>
+                </div>
+                <p className="text-sm text-slate-600 mt-0.5">
+                  {log.txn_category || (log.old_data && JSON.parse(log.old_data)?.category) || 'รายการ #' + log.transaction_id}
+                </p>
+                {log.user_name && <p className="text-xs text-slate-400">โดย: {log.user_name}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Modal>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-3">
         <div className="relative">
@@ -1024,19 +1064,24 @@ const Reports = ({ businesses }) => {
   const [selectedBiz, setSelectedBiz] = useState('all');
   const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [groupBy, setGroupBy] = useState('category');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const fmt = (n) => new Intl.NumberFormat('th-TH').format(n || 0);
+  const [error, setError] = useState('');
+  const fmt = (n) => new Intl.NumberFormat('th-TH').format(Number(n) || 0);
+  const activeBiz = businesses.filter(b => b.status === 'Active');
 
   const load = async () => {
-    setLoading(true);
-    const params = { start: startDate, end: endDate };
-    if (selectedBiz !== 'all') params.business_id = selectedBiz;
-    reportAPI.getPL(params)
-      .then(setData)
-      .catch(() => setData({ income: 155000, expense: 99000, profit: 56000, income_items: [], expense_items: [] }))
-      .finally(() => setLoading(false));
+    setLoading(true); setError('');
+    try {
+      const params = { start: startDate, end: endDate };
+      if (selectedBiz !== 'all') params.business_id = selectedBiz;
+      const result = await reportAPI.getPL(params);
+      setData(result);
+    } catch (err) {
+      setError('โหลดรายงานไม่สำเร็จ: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, [selectedBiz, startDate, endDate]);
@@ -1048,19 +1093,15 @@ const Reports = ({ businesses }) => {
           <h2 className="text-2xl font-bold text-slate-800">รายงานงบกำไรขาดทุน (P&L)</h2>
           <p className="text-slate-500 text-sm mt-1">Profit & Loss Statement</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => window.print()} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center gap-2"><Printer size={16} /> Print</button>
-        </div>
+        <button onClick={() => window.print()} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center gap-2"><Printer size={16} /> Print</button>
       </div>
 
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-3">เลือกธุรกิจ:</label>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setSelectedBiz('all')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${selectedBiz === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
-              รวมทุกร้าน
-            </button>
-            {businesses.map(biz => (
+            <button onClick={() => setSelectedBiz('all')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${selectedBiz === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'}`}>รวมทุกร้าน</button>
+            {activeBiz.map(biz => (
               <button key={biz.id} onClick={() => setSelectedBiz(String(biz.id))} className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${selectedBiz === String(biz.id) ? 'bg-blue-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
                 <span>{biz.icon}</span>ร้าน{biz.name}
               </button>
@@ -1074,37 +1115,72 @@ const Reports = ({ businesses }) => {
         </div>
       </div>
 
+      {error && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2"><AlertCircle size={18} />{error}</div>}
+
       {loading ? <div className="flex justify-center py-12"><Spinner /></div> : data && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-5 border-b border-slate-100 bg-slate-50 flex gap-2">
-            {[['category', <Tags size={16} />, 'แยกตามหมวดหมู่'], ['department', <FolderTree size={16} />, 'แยกตามแผนก']].map(([v, icon, label]) => (
-              <button key={v} onClick={() => setGroupBy(v)} className={`px-4 py-2 text-sm font-bold rounded-lg flex items-center gap-2 transition-all ${groupBy === v ? 'bg-white text-blue-700 shadow' : 'text-slate-600 hover:text-slate-800'}`}>{icon}{label}</button>
-            ))}
+        <div className="space-y-4">
+          {/* Summary */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
+              <p className="text-sm text-emerald-700 font-bold mb-1">รายรับรวม</p>
+              <p className="text-2xl font-black text-emerald-600">฿{fmt(data.income)}</p>
+            </div>
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 text-center">
+              <p className="text-sm text-rose-700 font-bold mb-1">รายจ่ายรวม</p>
+              <p className="text-2xl font-black text-rose-600">฿{fmt(data.expense)}</p>
+            </div>
+            <div className={`border rounded-2xl p-5 text-center ${Number(data.profit) >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'}`}>
+              <p className={`text-sm font-bold mb-1 ${Number(data.profit) >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>กำไรสุทธิ</p>
+              <p className={`text-2xl font-black ${Number(data.profit) >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>฿{fmt(data.profit)}</p>
+            </div>
           </div>
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-600">
-                <th className="p-4">รายการ</th>
-                <th className="p-4 text-right">จำนวนเงิน (฿)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="bg-emerald-50 border-b border-emerald-100">
-                <td className="p-4 font-bold text-emerald-800 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-500"></div>รายรับทั้งหมด</td>
-                <td className="p-4 text-right font-black text-emerald-600 text-lg">฿{fmt(data.income)}</td>
-              </tr>
-              <tr className="bg-rose-50 border-b border-rose-100">
-                <td className="p-4 font-bold text-rose-800 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-rose-500"></div>รายจ่ายรวม</td>
-                <td className="p-4 text-right font-black text-rose-600 text-lg">฿{fmt(data.expense)}</td>
-              </tr>
-              <tr className="bg-blue-50 border-t-2 border-blue-200">
-                <td className="p-5 font-black text-blue-800 flex items-center gap-2 text-base"><div className="w-4 h-4 rounded-full bg-blue-600"></div>กำไรสุทธิ</td>
-                <td className={`p-5 text-right font-black text-xl ${(data.profit || 0) >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
-                  ฿{fmt(data.profit)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+
+          {/* Income breakdown */}
+          {data.income_items?.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="px-5 py-3 bg-emerald-50 border-b border-emerald-100">
+                <h3 className="font-bold text-emerald-800">รายรับแยกตามหมวดหมู่</h3>
+              </div>
+              <table className="w-full">
+                <tbody className="divide-y divide-slate-100">
+                  {data.income_items.map((item, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-5 py-3 text-sm text-slate-700">{item.category || '(ไม่ระบุ)'}</td>
+                      <td className="px-5 py-3 text-right font-bold text-emerald-600">฿{fmt(item.total)}</td>
+                      <td className="px-5 py-3 text-right text-xs text-slate-400">{data.income > 0 ? Math.round(item.total / data.income * 100) : 0}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Expense breakdown */}
+          {data.expense_items?.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="px-5 py-3 bg-rose-50 border-b border-rose-100">
+                <h3 className="font-bold text-rose-800">รายจ่ายแยกตามหมวดหมู่</h3>
+              </div>
+              <table className="w-full">
+                <tbody className="divide-y divide-slate-100">
+                  {data.expense_items.map((item, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-5 py-3 text-sm text-slate-700">{item.category || '(ไม่ระบุ)'}</td>
+                      <td className="px-5 py-3 text-right font-bold text-rose-600">฿{fmt(item.total)}</td>
+                      <td className="px-5 py-3 text-right text-xs text-slate-400">{data.expense > 0 ? Math.round(item.total / data.expense * 100) : 0}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {data.income === 0 && data.expense === 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+              <FileText size={48} className="mx-auto mb-3 opacity-30" />
+              <p>ไม่พบข้อมูลในช่วงเวลาที่เลือก</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1163,8 +1239,8 @@ const UserManagement = ({ businesses, onSuccess }) => {
       } else {
         alert('เกิดข้อผิดพลาด: ' + (res.error || 'ไม่สามารถสร้างลิงค์ได้'));
       }
-    } catch {
-      alert('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
+    } catch (err) {
+      alert('เกิดข้อผิดพลาด: ' + err.message);
     } finally {
       setInvitingId(null);
     }

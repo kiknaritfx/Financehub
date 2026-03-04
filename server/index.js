@@ -1,12 +1,29 @@
 import express from 'express';
 import cors from 'cors';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import pool from './db.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 app.use(cors());
 app.use(express.json());
+
+// ─── AUTO MIGRATION (รันทุกครั้งที่ server start) ───
+async function runMigrations() {
+  try {
+    const schemaSQL = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
+    await pool.query(schemaSQL);
+    console.log('✅ DB migrations ok');
+  } catch (err) {
+    console.error('⚠️ Migration warning:', err.message);
+  }
+}
+runMigrations();
 
 // ─── INVITE USER (ส่งลิงค์ตั้งรหัสผ่าน) ───
 app.post('/api/users/:id/invite', async (req, res) => {
@@ -166,6 +183,8 @@ app.put('/api/businesses/:id', async (req, res) => {
 
 app.delete('/api/businesses/:id', async (req, res) => {
   try {
+    // ลบ transactions ก่อน (FK constraint)
+    await pool.query('DELETE FROM transactions WHERE business_id = $1', [req.params.id]);
     await pool.query('DELETE FROM businesses WHERE id = $1', [req.params.id]);
     res.json({ message: 'Deleted successfully' });
   } catch (err) {
@@ -226,12 +245,24 @@ app.post('/api/transactions', async (req, res) => {
 
 app.put('/api/transactions/:id', async (req, res) => {
   const { id } = req.params;
-  const { category, amount, note } = req.body;
+  const { category, amount, note, user_id } = req.body;
   try {
+    // บันทึก old data ก่อน
+    const oldResult = await pool.query('SELECT * FROM transactions WHERE id = $1', [id]);
+    if (oldResult.rows.length === 0) return res.status(404).json({ error: 'ไม่พบรายการ' });
+    const oldData = oldResult.rows[0];
+
     const result = await pool.query(
       'UPDATE transactions SET category = COALESCE($1, category), amount = COALESCE($2, amount), note = COALESCE($3, note), is_edited = TRUE WHERE id = $4 RETURNING *',
-      [category, amount, note, id]
+      [category || oldData.category, Number(amount) || oldData.amount, note !== undefined ? note : oldData.note, id]
     );
+
+    // บันทึก audit log
+    await pool.query(
+      'INSERT INTO audit_logs (transaction_id, user_id, action, old_data, new_data) VALUES ($1, $2, $3, $4, $5)',
+      [id, user_id || null, 'edit', JSON.stringify(oldData), JSON.stringify(result.rows[0])]
+    ).catch(() => {}); // ไม่ให้ audit error ทำให้ main fail
+
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -239,9 +270,42 @@ app.put('/api/transactions/:id', async (req, res) => {
 });
 
 app.delete('/api/transactions/:id', async (req, res) => {
+  const { user_id } = req.body || {};
   try {
+    const oldResult = await pool.query('SELECT * FROM transactions WHERE id = $1', [req.params.id]);
+    if (oldResult.rows.length === 0) return res.status(404).json({ error: 'ไม่พบรายการ' });
+
+    // บันทึก audit log ก่อนลบ
+    await pool.query(
+      'INSERT INTO audit_logs (transaction_id, user_id, action, old_data) VALUES ($1, $2, $3, $4)',
+      [req.params.id, user_id || null, 'delete', JSON.stringify(oldResult.rows[0])]
+    ).catch(() => {});
+
     await pool.query('DELETE FROM transactions WHERE id = $1', [req.params.id]);
     res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── AUDIT LOGS ───
+app.get('/api/audit-logs', async (req, res) => {
+  const { transaction_id, limit = 50 } = req.query;
+  try {
+    let query = `
+      SELECT a.*, u.name as user_name, t.txn_id, t.category as txn_category
+      FROM audit_logs a
+      LEFT JOIN users u ON a.user_id = u.id
+      LEFT JOIN transactions t ON a.transaction_id = t.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let i = 1;
+    if (transaction_id) { query += ` AND a.transaction_id = $${i++}`; params.push(transaction_id); }
+    query += ` ORDER BY a.created_at DESC LIMIT $${i}`;
+    params.push(limit);
+    const result = await pool.query(query, params);
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -250,7 +314,7 @@ app.delete('/api/transactions/:id', async (req, res) => {
 // ─── USERS ───
 app.get('/api/users', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, email, phone, role, business_ids, features, access_level, created_at FROM users ORDER BY id');
+    const result = await pool.query('SELECT id, name, email, phone, role, business_ids, features, access_level, invite_status, created_at FROM users ORDER BY id');
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -275,9 +339,10 @@ app.put('/api/users/:id', async (req, res) => {
   const { name, email, phone, role, business_ids, features, access_level } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE users SET name=$1, email=$2, phone=$3, role=$4, business_ids=$5, features=$6, access_level=$7 WHERE id=$8 RETURNING id, name, email, phone, role, business_ids, features, access_level',
+      'UPDATE users SET name=$1, email=$2, phone=$3, role=$4, business_ids=$5, features=$6, access_level=$7 WHERE id=$8 RETURNING id, name, email, phone, role, business_ids, features, access_level, invite_status',
       [name, email, phone, role, business_ids || [], features || [], access_level, req.params.id]
     );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
