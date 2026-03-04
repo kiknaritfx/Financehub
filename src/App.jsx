@@ -282,14 +282,60 @@ const Dashboard = ({ setCurrentView }) => {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('เดือนนี้');
   const [selectedBiz, setSelectedBiz] = useState(null);
-  const fmt = (n) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 }).format(n || 0);
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 }).format(Number(n) || 0);
 
-  useEffect(() => {
-    businessAPI.getAll()
-      .then(data => setBizData(Array.isArray(data) ? data : MOCK_BUSINESSES))
-      .catch(() => setBizData(MOCK_BUSINESSES))
-      .finally(() => setLoading(false));
-  }, []);
+  const getDateRange = (p) => {
+    const now = new Date();
+    if (p === 'วันนี้') {
+      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().split('T')[0];
+      return { start: s, end: s };
+    }
+    if (p === 'สัปดาห์นี้') {
+      const day = now.getDay();
+      const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      return { start: mon.toISOString().split('T')[0], end: now.toISOString().split('T')[0] };
+    }
+    // เดือนนี้
+    return {
+      start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
+      end: now.toISOString().split('T')[0]
+    };
+  };
+
+  const loadData = async (p) => {
+    setLoading(true);
+    try {
+      const { start, end } = getDateRange(p);
+      // โหลดทุกธุรกิจที่ Active
+      const allBiz = await businessAPI.getAll();
+      const activeBiz = (Array.isArray(allBiz) ? allBiz : []).filter(b => b.status === 'Active');
+
+      // โหลดข้อมูล P&L ตามช่วงวันที่ สำหรับแต่ละธุรกิจ
+      const results = await Promise.all(activeBiz.map(async (biz) => {
+        try {
+          const pl = await reportAPI.getPL({ business_id: biz.id, start, end });
+          return {
+            ...biz,
+            income: Number(pl.income) || 0,
+            expense: Number(pl.expense) || 0,
+            profit: Number(pl.profit) || 0,
+          };
+        } catch {
+          return { ...biz, income: 0, expense: 0, profit: 0 };
+        }
+      }));
+
+      // แสดงเฉพาะร้านที่มีข้อมูลในช่วงนั้น
+      const withData = results.filter(b => b.income > 0 || b.expense > 0);
+      setBizData(withData.length > 0 ? withData : results);
+    } catch {
+      setBizData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadData(period); }, [period]);
 
   if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
 
@@ -470,7 +516,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <h3 className="font-semibold text-slate-800 mb-4">1. เลือกร้านค้า</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {businesses.map(biz => (
+            {businesses.filter(b=>b.status==='Active').map(biz => (
               <div key={biz.id} onClick={() => setSelectedBizId(biz.id)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedBizId == biz.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -489,7 +535,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">วันที่</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none" />
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none text-base" />
             </div>
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">หมวดหมู่</label>
@@ -506,7 +552,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
                 <label className="w-24 text-sm font-medium text-slate-600">{label}</label>
                 <div className="relative flex-1">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">฿</span>
-                  <input type="number" min="0" value={val} onChange={e => setter(e.target.value)} className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0" />
+                  <input type="number" min="0" value={val} onChange={e => setter(e.target.value)} className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none text-base" placeholder="0" />
                 </div>
               </div>
             ))}
@@ -571,7 +617,7 @@ const ExpenseEntry = ({ businesses, onSuccess }) => {
         <div>
           <h3 className="font-semibold text-slate-800 mb-4">เลือกสาขา</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {businesses.map(biz => (
+            {businesses.filter(b=>b.status==='Active').map(biz => (
               <div key={biz.id} onClick={() => setSelectedBizId(biz.id)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedBizId == biz.id ? 'border-rose-500 bg-rose-50' : 'border-slate-200 hover:border-rose-300'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2"><span className="text-xl">{biz.icon}</span><span className="font-bold text-slate-700">{biz.name}</span></div>
@@ -634,7 +680,191 @@ const Transactions = ({ businesses }) => {
   const [filterBiz, setFilterBiz] = useState('');
   const [filterType, setFilterType] = useState('');
   const [deleteModal, setDeleteModal] = useState(null);
-  const fmt = (n) => new Intl.NumberFormat('th-TH').format(n);
+  const [editModal, setEditModal] = useState(null);
+  const [editCategory, setEditCategory] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const fmt = (n) => new Intl.NumberFormat('th-TH').format(Number(n) || 0);
+  const activeBiz = businesses.filter(b => b.status === 'Active');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    transactionAPI.getAll()
+      .then(data => setTxns(Array.isArray(data) ? data : []))
+      .catch(() => setTxns([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id) => {
+    try {
+      await transactionAPI.delete(id);
+      setTxns(prev => prev.filter(t => t.id !== id));
+      setDeleteModal(null);
+    } catch (err) {
+      alert('ลบไม่สำเร็จ: ' + err.message);
+    }
+  };
+
+  const openEdit = (tx) => {
+    setEditModal(tx);
+    setEditCategory(tx.category || '');
+    setEditAmount(String(tx.amount || ''));
+    setEditNote(tx.note || '');
+  };
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await transactionAPI.update(editModal.id, { category: editCategory, amount: Number(editAmount), note: editNote });
+      setTxns(prev => prev.map(t => t.id === editModal.id ? { ...t, category: editCategory, amount: Number(editAmount), note: editNote } : t));
+      setEditModal(null);
+    } catch (err) {
+      alert('แก้ไขไม่สำเร็จ: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const filtered = txns.filter(t => {
+    const s = search.toLowerCase();
+    return (!s || (t.category || '').toLowerCase().includes(s) || (t.created_by_name || '').includes(s) || (t.txn_id || '').toLowerCase().includes(s))
+      && (!filterBiz || String(t.business_id) === filterBiz)
+      && (!filterType || t.type === filterType);
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">รายการธุรกรรม (Transactions)</h2>
+          <p className="text-slate-500 text-sm mt-1">ประวัติการรับ-จ่ายทั้งหมด</p>
+        </div>
+        <button onClick={load} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-md">
+          <Download size={16} /> Refresh
+        </button>
+      </div>
+
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-3">
+        <div className="relative">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input type="text" placeholder="ค้นหาหมวดหมู่, ผู้บันทึก..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base bg-slate-50" />
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <select value={filterBiz} onChange={e => setFilterBiz(e.target.value)}
+            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base bg-slate-50">
+            <option value="">ทุกสาขา</option>
+            {activeBiz.map(b => <option key={b.id} value={b.id}>ร้าน{b.name}</option>)}
+          </select>
+          <select value={filterType} onChange={e => setFilterType(e.target.value)}
+            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base bg-slate-50">
+            <option value="">ทุกประเภท</option>
+            <option value="Income">รายรับ</option>
+            <option value="Expense">รายจ่าย</option>
+          </select>
+        </div>
+      </div>
+
+      {loading ? <div className="flex justify-center py-12"><Spinner /></div> : (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[700px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-600">
+                  <th className="p-4">วันที่</th>
+                  <th className="p-4">สาขา</th>
+                  <th className="p-4">ประเภท / หมวดหมู่</th>
+                  <th className="p-4 text-right">จำนวนเงิน</th>
+                  <th className="p-4">ผู้บันทึก</th>
+                  <th className="p-4 text-center">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.length === 0 ? (
+                  <tr><td colSpan="6" className="p-8 text-center text-slate-400">ไม่พบข้อมูล</td></tr>
+                ) : filtered.map(tx => (
+                  <tr key={tx.id} className="hover:bg-blue-50/30 transition-colors">
+                    <td className="p-4 text-sm text-slate-700 whitespace-nowrap">
+                      <div className="font-bold">{(tx.created_at || tx.date || '').split('T')[0]}</div>
+                    </td>
+                    <td className="p-4 text-sm font-medium text-slate-700">{tx.business_name || '—'}</td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <Badge type={tx.type === 'Income' ? 'income' : 'expense'}>{tx.type === 'Income' ? 'รายรับ' : 'รายจ่าย'}</Badge>
+                        <span className="text-sm text-slate-700">{tx.category}</span>
+                      </div>
+                    </td>
+                    <td className={`p-4 text-right text-base font-black ${tx.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {tx.type === 'Income' ? '+' : '-'}{fmt(tx.amount)}
+                    </td>
+                    <td className="p-4 text-sm text-slate-600">{tx.created_by_name || '—'}</td>
+                    <td className="p-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => openEdit(tx)} className="px-3 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center gap-1">
+                          <Edit2 size={14} /> แก้ไข
+                        </button>
+                        <button onClick={() => setDeleteModal(tx)} className="px-3 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1">
+                          <Trash2 size={14} /> ลบ
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-4 border-t border-slate-200 text-sm text-slate-500 bg-slate-50">
+            แสดง {filtered.length} จาก {txns.length} รายการ
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      <Modal isOpen={!!editModal} onClose={() => setEditModal(null)} title="แก้ไขรายการ">
+        <form onSubmit={handleEdit} className="space-y-4 py-2">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5">หมวดหมู่</label>
+            <input type="text" value={editCategory} onChange={e => setEditCategory(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5">จำนวนเงิน (฿)</label>
+            <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} min="0"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5">หมายเหตุ</label>
+            <input type="text" value={editNote} onChange={e => setEditNote(e.target.value)} placeholder="(ถ้ามี)"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setEditModal(null)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100">ยกเลิก</button>
+            <button type="submit" disabled={saving} className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} บันทึก
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Modal */}
+      <Modal isOpen={!!deleteModal} onClose={() => setDeleteModal(null)} title="ยืนยันการลบข้อมูล">
+        <div className="text-center py-4">
+          <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4"><Trash2 size={32} /></div>
+          <h4 className="text-lg font-bold text-slate-800 mb-2">คุณแน่ใจหรือไม่?</h4>
+          <p className="text-slate-600 text-sm mb-6">รายการ <strong>{deleteModal?.category}</strong> จะถูกลบถาวร</p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => setDeleteModal(null)} className="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100">ยกเลิก</button>
+            <button onClick={() => handleDelete(deleteModal.id)} className="px-6 py-3 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700">ยืนยันลบ</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+};
 
   const load = useCallback(() => {
     setLoading(true);
@@ -683,7 +913,7 @@ const Transactions = ({ businesses }) => {
         <div className="flex gap-3 flex-1">
           <select value={filterBiz} onChange={e => setFilterBiz(e.target.value)} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
             <option value="">ทุกสาขา</option>
-            {businesses.map(b => <option key={b.id} value={b.id}>ร้าน{b.name}</option>)}
+            {businesses.filter(b=>b.status==='Active').map(b => <option key={b.id} value={b.id}>ร้าน{b.name}</option>)}
           </select>
           <select value={filterType} onChange={e => setFilterType(e.target.value)} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50">
             <option value="">ทุกประเภท</option>
@@ -768,6 +998,22 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
   const [pettyCashMax, setPettyCashMax] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('🏪');
   const [loading, setLoading] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async (biz) => {
+    setDeleting(true);
+    try {
+      await businessAPI.delete(biz.id);
+      setBusinesses(prev => prev.filter(b => b.id !== biz.id));
+      setDeleteModal(null);
+      onSuccess('ลบธุรกิจสำเร็จ ✅');
+    } catch (err) {
+      alert('ลบไม่สำเร็จ: ' + err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const openAdd = () => { setEditingId(null); setName(''); setType(''); setPettyCashMax(''); setSelectedEmoji('🏪'); setIsDrawerOpen(true); };
   const openEdit = (biz) => { setEditingId(biz.id); setName(biz.name); setType(biz.type); setPettyCashMax(biz.petty_cash_max || ''); setSelectedEmoji(biz.icon || '🏪'); setIsDrawerOpen(true); };
@@ -806,6 +1052,22 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
 
   return (
     <div className="space-y-6">
+      {/* Delete Confirm Modal */}
+      <Modal isOpen={!!deleteModal} onClose={() => !deleting && setDeleteModal(null)} title="ยืนยันการลบธุรกิจ">
+        <div className="text-center py-4">
+          <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">{deleteModal?.icon || '🏪'}</div>
+          <h4 className="text-lg font-bold text-slate-800 mb-1">ลบ "{deleteModal?.name}"?</h4>
+          <p className="text-slate-500 text-sm mb-2">ข้อมูลธุรกิจและรายการธุรกรรมทั้งหมดจะถูกลบถาวร</p>
+          <p className="text-rose-600 text-xs font-bold bg-rose-50 px-4 py-2 rounded-xl mb-6">⚠️ ไม่สามารถกู้คืนข้อมูลได้</p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => setDeleteModal(null)} disabled={deleting} className="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100">ยกเลิก</button>
+            <button onClick={() => handleDelete(deleteModal)} disabled={deleting} className="px-6 py-3 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2">
+              {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} ยืนยันลบ
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">จัดการธุรกิจ (Business)</h2>
@@ -833,8 +1095,11 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
               <button onClick={() => openEdit(biz)} className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-bold rounded-xl border border-slate-200 flex items-center justify-center gap-2">
                 <Edit2 size={16} /> ตั้งค่า
               </button>
-              <button onClick={() => toggleStatus(biz)} className={`py-2 px-4 text-sm font-bold rounded-xl border flex items-center ${biz.status === 'Active' ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-emerald-50 border-emerald-200 text-emerald-600'}`}>
+              <button onClick={() => toggleStatus(biz)} className={`py-2 px-3 text-sm font-bold rounded-xl border flex items-center ${biz.status === 'Active' ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-emerald-50 border-emerald-200 text-emerald-600'}`}>
                 <Power size={16} />
+              </button>
+              <button onClick={() => setDeleteModal(biz)} className="py-2 px-3 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 text-sm font-bold rounded-xl flex items-center">
+                <Trash2 size={16} />
               </button>
             </div>
           </div>
@@ -846,15 +1111,15 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1.5">ชื่อธุรกิจ *</label>
-              <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="เช่น กาแฟ D" />
+              <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="เช่น กาแฟ D" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">ประเภทธุรกิจ *</label>
-              <input type="text" required value={type} onChange={e => setType(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="เช่น Cafe" />
+              <input type="text" required value={type} onChange={e => setType(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="เช่น Cafe" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">วงเงินสดย่อย (฿)</label>
-              <input type="number" value={pettyCashMax} onChange={e => setPettyCashMax(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="20000" />
+              <input type="number" value={pettyCashMax} onChange={e => setPettyCashMax(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="20000" />
             </div>
           </div>
           <div>
@@ -926,9 +1191,9 @@ const Reports = ({ businesses }) => {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-3">
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
           <span className="text-slate-500 font-bold">ถึง</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
         </div>
       </div>
 
@@ -1158,12 +1423,12 @@ const UserManagement = ({ businesses, onSuccess }) => {
             {[['ชื่อ-นามสกุล *', name, setName, 'text', 'กรอกชื่อ-นามสกุล'], ['อีเมล *', email, setEmail, 'email', 'example@email.com'], ['เบอร์โทร', phone, setPhone, 'tel', '08X-XXX-XXXX']].map(([label, val, setter, type, ph]) => (
               <div key={label}>
                 <label className="block text-sm font-bold text-slate-700 mb-1.5">{label}</label>
-                <input type={type} required={label.includes('*')} value={val} onChange={e => setter(e.target.value)} placeholder={ph} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                <input type={type} required={label.includes('*')} value={val} onChange={e => setter(e.target.value)} placeholder={ph} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
               </div>
             ))}
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1.5">ตำแหน่ง</label>
-              <select value={role} onChange={e => setRole(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+              <select value={role} onChange={e => setRole(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base">
                 <option>เจ้าของธุรกิจ</option><option>ผู้จัดการ</option><option>พนักงาน</option>
               </select>
             </div>
