@@ -79,7 +79,19 @@ app.put('/api/businesses/:id', async (req, res) => {
 
 app.delete('/api/businesses/:id', async (req, res) => {
   try {
+    // ลบ images ก่อน (FK chain)
+    await pool.query(`
+      DELETE FROM transaction_images 
+      WHERE transaction_id IN (SELECT id FROM transactions WHERE business_id=$1)
+    `, [req.params.id]);
+    // ลบ audit logs
+    await pool.query(`
+      DELETE FROM audit_logs 
+      WHERE transaction_id IN (SELECT id FROM transactions WHERE business_id=$1)
+    `, [req.params.id]);
+    // ลบ transactions
     await pool.query('DELETE FROM transactions WHERE business_id=$1', [req.params.id]);
+    // ลบ business
     await pool.query('DELETE FROM businesses WHERE id=$1', [req.params.id]);
     res.json({ message: 'Deleted' });
   } catch (err) { res.status(500).json({ error: err.message }); }
