@@ -10,7 +10,7 @@ import {
   Phone, Shield, Lightbulb, CheckSquare, Lock, User, CalendarDays,
   Loader2
 } from 'lucide-react';
-import { businessAPI, transactionAPI, userAPI, reportAPI, auditAPI } from './api.js';
+import { businessAPI, transactionAPI, userAPI, reportAPI, auditAPI, imageAPI } from './api.js';
 
 // ─── INVITE API ───
 const inviteAPI = {
@@ -579,14 +579,39 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
 };
 
 // ─── EXPENSE ENTRY ───
-const ExpenseEntry = ({ businesses, onSuccess }) => {
+const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   const [selectedBizId, setSelectedBizId] = useState('');
   const [datetime, setDatetime] = useState(new Date().toISOString().slice(0, 16));
   const [category, setCategory] = useState('ต้นทุนขาย/วัตถุดิบ (COGS)');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [pettyCash, setPettyCash] = useState(true);
+  const [images, setImages] = useState([]); // { name, data, type, preview }
   const [loading, setLoading] = useState(false);
+
+  const selectedBiz = businesses.find(b => String(b.id) === String(selectedBizId));
+  const fmt = (n) => new Intl.NumberFormat('th-TH').format(n || 0);
+
+  const handleImagePick = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      if (images.length >= 5) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const base64 = ev.target.result;
+        setImages(prev => [...prev, {
+          name: file.name,
+          data: base64,
+          type: file.type,
+          preview: base64
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const removeImage = (idx) => setImages(prev => prev.filter((_, i) => i !== idx));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -596,10 +621,13 @@ const ExpenseEntry = ({ businesses, onSuccess }) => {
     try {
       await transactionAPI.create({
         business_id: selectedBizId, type: 'Expense', category,
-        amount: Number(amount), date: datetime, petty_cash: pettyCash, note
+        amount: Number(amount), date: datetime, petty_cash: pettyCash, note,
+        images: images.map(img => ({ name: img.name, data: img.data, type: img.type })),
+        created_by_name: user?.name || 'Admin'
       });
       onSuccess('บันทึกรายจ่ายสำเร็จ ✅');
-      setAmount(''); setNote('');
+      setAmount(''); setNote(''); setImages(''); setSelectedBizId('');
+      setImages([]);
     } catch (err) {
       alert('เกิดข้อผิดพลาด: ' + err.message);
     } finally {
@@ -613,11 +641,12 @@ const ExpenseEntry = ({ businesses, onSuccess }) => {
         <h2 className="text-2xl font-bold text-slate-800">บันทึกรายจ่าย (Expense)</h2>
         <p className="text-slate-500 text-sm mt-1">บันทึกรายจ่ายและเบิกเงินสดย่อย</p>
       </div>
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
-        <div>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* เลือกสาขา */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <h3 className="font-semibold text-slate-800 mb-4">เลือกสาขา</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {businesses.filter(b=>b.status==='Active').map(biz => (
+            {businesses.filter(b => b.status === 'Active').map(biz => (
               <div key={biz.id} onClick={() => setSelectedBizId(biz.id)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedBizId == biz.id ? 'border-rose-500 bg-rose-50' : 'border-slate-200 hover:border-rose-300'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2"><span className="text-xl">{biz.icon}</span><span className="font-bold text-slate-700">{biz.name}</span></div>
@@ -626,46 +655,114 @@ const ExpenseEntry = ({ businesses, onSuccess }) => {
               </div>
             ))}
           </div>
+
+          {/* Petty Cash Status */}
+          {selectedBiz && (
+            <div className="mt-4 bg-slate-900 rounded-xl p-4 text-white">
+              <div className="flex items-center gap-2 text-sm text-slate-300 mb-2">
+                <Wallet size={14} /> สถานะเงินสดย่อย {selectedBiz.name}
+              </div>
+              <div className="flex items-end gap-2 mb-2">
+                <span className={`text-3xl font-black ${(selectedBiz.petty_cash / selectedBiz.petty_cash_max) < 0.3 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  ฿ {fmt(selectedBiz.petty_cash)}
+                </span>
+                <span className="text-slate-400 text-sm mb-1">/ {fmt(selectedBiz.petty_cash_max)}</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2 mb-2">
+                <div className={`h-2 rounded-full transition-all ${(selectedBiz.petty_cash / selectedBiz.petty_cash_max) < 0.3 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${Math.min(100, (selectedBiz.petty_cash / selectedBiz.petty_cash_max) * 100)}%` }} />
+              </div>
+              {(selectedBiz.petty_cash / selectedBiz.petty_cash_max) < 0.3 && (
+                <p className="text-amber-400 text-xs font-bold">⚠️ ยอดเงินสดย่อยต่ำกว่า 30% กรุณาเบิกเพิ่ม</p>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* รายละเอียด */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">วันที่/เวลา</label>
+              <input type="datetime-local" value={datetime} onChange={e => setDatetime(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">หมวดหมู่รายจ่าย</label>
+              <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none appearance-none">
+                {STANDARD_CATEGORIES.expense.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">วันที่/เวลา</label>
-            <input type="datetime-local" value={datetime} onChange={e => setDatetime(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none" />
+            <label className="block text-sm font-bold text-slate-700 mb-2">จำนวนเงิน</label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">฿</span>
+              <input type="number" required min="0" value={amount} onChange={e => setAmount(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-rose-600 text-xl font-black" placeholder="0.00" />
+            </div>
           </div>
+
+          <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
+            <input type="checkbox" id="pettycash" checked={pettyCash} onChange={e => setPettyCash(e.target.checked)} className="mt-1 w-5 h-5 text-amber-600 rounded cursor-pointer" />
+            <div>
+              <label htmlFor="pettycash" className="font-bold text-amber-900 cursor-pointer block">จ่ายด้วยเงินสดย่อย (Petty Cash)</label>
+              <p className="text-sm text-amber-700 mt-0.5">ยอดนี้จะถูกหักออกจากวงเงินสดย่อยของสาขา</p>
+            </div>
+          </div>
+
+          {/* แนบรูปภาพหลักฐาน */}
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">หมวดหมู่รายจ่าย</label>
-            <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none appearance-none">
-              {STANDARD_CATEGORIES.expense.map(c => <option key={c}>{c}</option>)}
-            </select>
-          </div>
-        </div>
+            <label className="block text-sm font-bold text-slate-700 mb-3">
+              📎 แนบรูปภาพหลักฐาน <span className="text-slate-400 font-normal">(ใบเสร็จ / ใบกำกับภาษี) สูงสุด 5 รูป</span>
+            </label>
 
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">จำนวนเงิน</label>
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">฿</span>
-            <input type="number" required min="0" value={amount} onChange={e => setAmount(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-rose-600 text-xl font-black" placeholder="0.00" />
-          </div>
-        </div>
+            {images.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative group aspect-square">
+                    <img src={img.preview} alt={img.name} className="w-full h-full object-cover rounded-xl border border-slate-200" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 rounded-xl transition-all flex items-center justify-center">
+                      <button type="button" onClick={() => removeImage(idx)}
+                        className="opacity-0 group-hover:opacity-100 w-7 h-7 bg-rose-600 text-white rounded-full flex items-center justify-center transition-opacity">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded-full">{idx + 1}</div>
+                  </div>
+                ))}
+                {images.length < 5 && (
+                  <label className="aspect-square border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-rose-400 hover:bg-rose-50 transition-all">
+                    <Plus size={20} className="text-slate-400" />
+                    <span className="text-xs text-slate-400 mt-1">เพิ่มรูป</span>
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleImagePick} />
+                  </label>
+                )}
+              </div>
+            )}
 
-        <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
-          <input type="checkbox" id="pettycash" checked={pettyCash} onChange={e => setPettyCash(e.target.checked)} className="mt-1 w-5 h-5 text-amber-600 rounded cursor-pointer" />
+            {images.length === 0 && (
+              <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-rose-400 hover:bg-rose-50 transition-all">
+                <UploadCloud size={28} className="text-slate-400 mb-1" />
+                <span className="text-sm font-medium text-slate-500">คลิกเพื่ออัพโหลดรูปภาพ</span>
+                <span className="text-xs text-slate-400">JPG, PNG, HEIC ขนาดสูงสุด 5MB ต่อรูป</span>
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handleImagePick} />
+              </label>
+            )}
+          </div>
+
           <div>
-            <label htmlFor="pettycash" className="font-bold text-amber-900 cursor-pointer block">จ่ายด้วยเงินสดย่อย (Petty Cash)</label>
-            <p className="text-sm text-amber-700 mt-0.5">ยอดนี้จะถูกหักจากวงเงินสดย่อยของสาขา</p>
+            <label className="block text-sm font-bold text-slate-700 mb-2">หมายเหตุ</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none" rows="2"
+              placeholder="เช่น ชื่อวัตถุดิบด่วน เนื่องจากของขาด..." />
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">หมายเหตุ</label>
-          <textarea value={note} onChange={e => setNote(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none" rows="2" placeholder="หมายเหตุเพิ่มเติม" />
-        </div>
-
-        <div className="flex justify-end pt-4 border-t border-slate-100">
-          <button type="submit" disabled={loading} className="px-6 py-3 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-50 shadow-lg flex items-center gap-2">
-            {loading ? <><Spinner /> กำลังบันทึก...</> : 'บันทึกรายจ่าย'}
-          </button>
+          <div className="flex justify-end pt-4 border-t border-slate-100">
+            <button type="submit" disabled={loading} className="px-8 py-3 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-50 shadow-lg flex items-center gap-2">
+              {loading ? <><Spinner /> กำลังบันทึก...</> : <>บันทึกรายจ่าย {images.length > 0 && `(${images.length} รูป)`}</>}
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -673,7 +770,7 @@ const ExpenseEntry = ({ businesses, onSuccess }) => {
 };
 
 // ─── TRANSACTIONS ───
-const Transactions = ({ businesses }) => {
+const Transactions = ({ businesses, user }) => {
   const [txns, setTxns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -685,9 +782,16 @@ const Transactions = ({ businesses }) => {
   const [editAmount, setEditAmount] = useState('');
   const [editNote, setEditNote] = useState('');
   const [saving, setSaving] = useState(false);
-  const [logModal, setLogModal] = useState(false);
-  const [logs, setLogs] = useState([]);
-  const [logsLoading, setLogsLoading] = useState(false);
+  // Image viewer
+  const [imageModal, setImageModal] = useState(null); // transaction object
+  const [images, setImages] = useState([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
+  const [activeImgIdx, setActiveImgIdx] = useState(0);
+  // Audit log per transaction
+  const [auditModal, setAuditModal] = useState(null); // transaction object
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
   const fmt = (n) => new Intl.NumberFormat('th-TH').format(Number(n) || 0);
   const activeBiz = businesses.filter(b => b.status === 'Active');
 
@@ -701,14 +805,25 @@ const Transactions = ({ businesses }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const openLog = async () => {
-    setLogModal(true);
-    setLogsLoading(true);
+  const openImages = async (tx) => {
+    setImageModal(tx);
+    setActiveImgIdx(0);
+    setImagesLoading(true);
     try {
-      const data = await auditAPI.getLogs({ limit: 100 });
-      setLogs(Array.isArray(data) ? data : []);
-    } catch { setLogs([]); }
-    finally { setLogsLoading(false); }
+      const data = await imageAPI.getAll(tx.id);
+      setImages(Array.isArray(data) ? data : []);
+    } catch { setImages([]); }
+    finally { setImagesLoading(false); }
+  };
+
+  const openAudit = async (tx) => {
+    setAuditModal(tx);
+    setAuditLoading(true);
+    try {
+      const data = await auditAPI.getByTransaction(tx.id);
+      setAuditLogs(Array.isArray(data) ? data : []);
+    } catch { setAuditLogs([]); }
+    finally { setAuditLoading(false); }
   };
 
   const handleDelete = async (id) => {
@@ -716,9 +831,7 @@ const Transactions = ({ businesses }) => {
       await transactionAPI.delete(id);
       setTxns(prev => prev.filter(t => t.id !== id));
       setDeleteModal(null);
-    } catch (err) {
-      alert('ลบไม่สำเร็จ: ' + err.message);
-    }
+    } catch (err) { alert('ลบไม่สำเร็จ: ' + err.message); }
   };
 
   const openEdit = (tx) => {
@@ -732,14 +845,22 @@ const Transactions = ({ businesses }) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await transactionAPI.update(editModal.id, { category: editCategory, amount: Number(editAmount), note: editNote });
-      setTxns(prev => prev.map(t => t.id === editModal.id ? { ...t, category: editCategory, amount: Number(editAmount), note: editNote, is_edited: true } : t));
+      await transactionAPI.update(editModal.id, {
+        category: editCategory, amount: Number(editAmount), note: editNote,
+        user_name: user?.name || 'Admin'
+      });
+      setTxns(prev => prev.map(t => t.id === editModal.id
+        ? { ...t, category: editCategory, amount: Number(editAmount), note: editNote, is_edited: true } : t));
       setEditModal(null);
-    } catch (err) {
-      alert('แก้ไขไม่สำเร็จ: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { alert('แก้ไขไม่สำเร็จ: ' + err.message); }
+    finally { setSaving(false); }
+  };
+
+  const downloadImage = (img) => {
+    const a = document.createElement('a');
+    a.href = img.file_data;
+    a.download = img.file_name || 'receipt.jpg';
+    a.click();
   };
 
   const filtered = txns.filter(t => {
@@ -749,7 +870,8 @@ const Transactions = ({ businesses }) => {
       && (!filterType || t.type === filterType);
   });
 
-  const actionLabel = (a) => a === 'edit' ? '✏️ แก้ไข' : a === 'delete' ? '🗑 ลบ' : '➕ เพิ่ม';
+  const auditIcon = (a) => a === 'EDIT' ? '✏️' : a === 'DELETE' ? '🗑' : '➕';
+  const auditColor = (a) => a === 'EDIT' ? 'bg-blue-100 text-blue-700' : a === 'DELETE' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700';
 
   return (
     <div className="space-y-6">
@@ -758,50 +880,25 @@ const Transactions = ({ businesses }) => {
           <h2 className="text-2xl font-bold text-slate-800">รายการธุรกรรม (Transactions)</h2>
           <p className="text-slate-500 text-sm mt-1">ประวัติการรับ-จ่ายทั้งหมด</p>
         </div>
-        <button onClick={openLog} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-md">
-          <History size={16} /> Log
+        <button onClick={load} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center gap-2">
+          <Download size={16} /> Refresh
         </button>
       </div>
-
-      {/* Log Modal */}
-      <Modal isOpen={logModal} onClose={() => setLogModal(false)} title="ประวัติการดำเนินการ (Audit Log)">
-        <div className="space-y-2 max-h-[60vh] overflow-y-auto py-2">
-          {logsLoading ? <div className="flex justify-center py-8"><Spinner /></div> :
-           logs.length === 0 ? <p className="text-center text-slate-400 py-8">ยังไม่มีประวัติ</p> :
-           logs.map(log => (
-            <div key={log.id} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm ${log.action === 'edit' ? 'bg-blue-100' : log.action === 'delete' ? 'bg-rose-100' : 'bg-emerald-100'}`}>
-                {log.action === 'edit' ? '✏️' : log.action === 'delete' ? '🗑' : '➕'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold text-sm text-slate-800">{actionLabel(log.action)}</span>
-                  <span className="text-xs text-slate-400 shrink-0">{new Date(log.created_at).toLocaleString('th-TH')}</span>
-                </div>
-                <p className="text-sm text-slate-600 mt-0.5">
-                  {log.txn_category || (log.old_data && JSON.parse(log.old_data)?.category) || 'รายการ #' + log.transaction_id}
-                </p>
-                {log.user_name && <p className="text-xs text-slate-400">โดย: {log.user_name}</p>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Modal>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-3">
         <div className="relative">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="text" placeholder="ค้นหาหมวดหมู่, ผู้บันทึก..." value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder="ค้นหาหมวดหมู่, ผู้บันทึก, เลขที่..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base bg-slate-50" />
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <select value={filterBiz} onChange={e => setFilterBiz(e.target.value)}
-            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base bg-slate-50">
+            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50">
             <option value="">ทุกสาขา</option>
             {activeBiz.map(b => <option key={b.id} value={b.id}>ร้าน{b.name}</option>)}
           </select>
           <select value={filterType} onChange={e => setFilterType(e.target.value)}
-            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base bg-slate-50">
+            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50">
             <option value="">ทุกประเภท</option>
             <option value="Income">รายรับ</option>
             <option value="Expense">รายจ่าย</option>
@@ -812,43 +909,65 @@ const Transactions = ({ businesses }) => {
       {loading ? <div className="flex justify-center py-12"><Spinner /></div> : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[700px]">
+            <table className="w-full text-left min-w-[750px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-600">
-                  <th className="p-4">วันที่</th>
+                  <th className="p-4">วันที่/เวลา</th>
                   <th className="p-4">สาขา</th>
                   <th className="p-4">ประเภท / หมวดหมู่</th>
-                  <th className="p-4 text-right">จำนวนเงิน</th>
+                  <th className="p-4 text-right">จำนวนเงิน (฿)</th>
+                  <th className="p-4 text-center">หลักฐาน</th>
                   <th className="p-4">ผู้บันทึก</th>
                   <th className="p-4 text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan="6" className="p-8 text-center text-slate-400">ไม่พบข้อมูล</td></tr>
+                  <tr><td colSpan="7" className="p-8 text-center text-slate-400">ไม่พบข้อมูล</td></tr>
                 ) : filtered.map(tx => (
                   <tr key={tx.id} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="p-4 text-sm text-slate-700 whitespace-nowrap">
-                      <div className="font-bold">{(tx.created_at || tx.date || '').split('T')[0]}</div>
+                    <td className="p-4 text-sm whitespace-nowrap">
+                      <div className="font-bold text-slate-800">{(tx.created_at || tx.date || '').split('T')[0]}</div>
+                      <div className="text-slate-400 text-xs">{(tx.created_at || tx.date || '').split('T')[1]?.slice(0,5)}</div>
                     </td>
                     <td className="p-4 text-sm font-medium text-slate-700">{tx.business_name || '—'}</td>
                     <td className="p-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge type={tx.type === 'Income' ? 'income' : 'expense'}>{tx.type === 'Income' ? 'รายรับ' : 'รายจ่าย'}</Badge>
                         <span className="text-sm text-slate-700">{tx.category}</span>
+                        {tx.is_edited && <Badge type="audit">✏️ Edited</Badge>}
                       </div>
                     </td>
                     <td className={`p-4 text-right text-base font-black ${tx.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {tx.type === 'Income' ? '+' : '-'}{fmt(tx.amount)}
                     </td>
-                    <td className="p-4 text-sm text-slate-600">{tx.created_by_name || '—'}</td>
+                    <td className="p-4 text-center">
+                      <button onClick={() => openImages(tx)}
+                        className={`relative inline-flex items-center justify-center w-9 h-9 rounded-xl border transition-all ${tx.image_count > 0 ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
+                        <ImageIcon size={16} />
+                        {tx.image_count > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                            {tx.image_count}
+                          </span>
+                        )}
+                      </button>
+                    </td>
+                    <td className="p-4 text-sm text-slate-600">
+                      <div>{tx.created_by_name || '—'}</div>
+                    </td>
                     <td className="p-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => openEdit(tx)} className="px-3 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center gap-1">
-                          <Edit2 size={14} /> แก้ไข
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button onClick={() => openAudit(tx)} title="ประวัติการแก้ไข"
+                          className="w-8 h-8 flex items-center justify-center text-purple-500 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-100">
+                          <History size={14} />
                         </button>
-                        <button onClick={() => setDeleteModal(tx)} className="px-3 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1">
-                          <Trash2 size={14} /> ลบ
+                        <button onClick={() => openEdit(tx)}
+                          className="px-2.5 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center gap-1 border border-blue-100">
+                          <Edit2 size={13} /> แก้ไข
+                        </button>
+                        <button onClick={() => setDeleteModal(tx)}
+                          className="px-2.5 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1 border border-rose-100">
+                          <Trash2 size={13} /> ลบ
                         </button>
                       </div>
                     </td>
@@ -862,6 +981,119 @@ const Transactions = ({ businesses }) => {
           </div>
         </div>
       )}
+
+      {/* ─── IMAGE VIEWER MODAL ─── */}
+      <Modal isOpen={!!imageModal} onClose={() => setImageModal(null)} title={`หลักฐาน: ${imageModal?.txn_id || ''}`}>
+        <div className="space-y-4">
+          {imagesLoading ? (
+            <div className="flex justify-center py-12"><Spinner /></div>
+          ) : images.length === 0 ? (
+            <div className="text-center py-10">
+              <ImageIcon size={48} className="mx-auto text-slate-300 mb-3" />
+              <p className="text-slate-500 font-medium">ยังไม่มีรูปภาพหลักฐาน</p>
+              <p className="text-slate-400 text-sm mt-1">บันทึกรายจ่ายพร้อมแนบรูปได้ที่เมนู "จ่ายเงิน"</p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-slate-900 rounded-2xl overflow-hidden aspect-video flex items-center justify-center relative">
+                <img src={images[activeImgIdx]?.file_data} alt={images[activeImgIdx]?.file_name}
+                  className="max-w-full max-h-full object-contain" />
+                {images.length > 1 && (
+                  <>
+                    <button onClick={() => setActiveImgIdx(p => Math.max(0, p - 1))}
+                      disabled={activeImgIdx === 0}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 disabled:opacity-30">
+                      ‹
+                    </button>
+                    <button onClick={() => setActiveImgIdx(p => Math.min(images.length - 1, p + 1))}
+                      disabled={activeImgIdx === images.length - 1}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 disabled:opacity-30">
+                      ›
+                    </button>
+                    <span className="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
+                      {activeImgIdx + 1} / {images.length}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {images.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {images.map((img, idx) => (
+                    <button key={img.id} onClick={() => setActiveImgIdx(idx)}
+                      className={`shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${activeImgIdx === idx ? 'border-blue-500' : 'border-slate-200 hover:border-blue-300'}`}>
+                      <img src={img.file_data} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-slate-500">
+                  <span className="font-medium">อัพโหลดโดย:</span> {images[activeImgIdx]?.uploaded_by_name || '—'}
+                  <span className="ml-3 text-slate-400">{images[activeImgIdx]?.created_at ? new Date(images[activeImgIdx].created_at).toLocaleString('th-TH') : ''}</span>
+                </div>
+                <button onClick={() => downloadImage(images[activeImgIdx])}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
+                  <Download size={16} /> ดาวน์โหลดรูปนี้
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      {/* ─── AUDIT LOG MODAL ─── */}
+      <Modal isOpen={!!auditModal} onClose={() => setAuditModal(null)} title={`ประวัติการแก้ไข: ${auditModal?.txn_id || ''}`}>
+        <div className="space-y-1 py-1 max-h-[55vh] overflow-y-auto">
+          {auditLoading ? (
+            <div className="flex justify-center py-8"><Spinner /></div>
+          ) : auditLogs.length === 0 ? (
+            <p className="text-center text-slate-400 py-8">ยังไม่มีประวัติ</p>
+          ) : (
+            <div className="relative">
+              <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-slate-200"></div>
+              {auditLogs.map((log, idx) => (
+                <div key={log.id} className="flex gap-4 pb-5 relative">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-lg z-10 border-2 border-white ${auditColor(log.action)}`}>
+                    {auditIcon(log.action)}
+                  </div>
+                  <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <span className="font-bold text-slate-800">{log.user_name || 'Admin'}</span>
+                        <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-bold ${auditColor(log.action)}`}>
+                          {log.action === 'EDIT' ? 'แก้ไข' : log.action === 'DELETE' ? 'ลบ' : 'สร้าง'}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-400 shrink-0">{new Date(log.created_at).toLocaleString('th-TH')}</span>
+                    </div>
+
+                    {log.action === 'CREATE' && (
+                      <p className="text-sm text-slate-600">{log.new_value || 'บันทึกรายการครั้งแรก'}</p>
+                    )}
+
+                    {log.action === 'EDIT' && log.field_changed && (
+                      <div className="text-sm space-y-1">
+                        <p className="text-slate-500">เปลี่ยน <strong className="text-slate-700">{log.field_changed}</strong></p>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-1 bg-rose-50 text-rose-700 rounded-lg font-mono text-xs line-through">{log.old_value}</span>
+                          <span className="text-slate-400">→</span>
+                          <span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-mono text-xs font-bold">{log.new_value}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {log.action === 'DELETE' && (
+                      <p className="text-sm text-rose-600">{log.old_value || 'ลบรายการออกจากระบบ'}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Edit Modal */}
       <Modal isOpen={!!editModal} onClose={() => setEditModal(null)} title="แก้ไขรายการ">
@@ -1488,8 +1720,8 @@ export default function App() {
     switch (currentView) {
       case 'dashboard': return <Dashboard setCurrentView={setCurrentView} />;
       case 'income': return <IncomeEntry businesses={businesses} onSuccess={showToast} />;
-      case 'expense': return <ExpenseEntry businesses={businesses} onSuccess={showToast} />;
-      case 'transactions': return <Transactions businesses={businesses} />;
+      case 'expense': return <ExpenseEntry businesses={businesses} user={user} onSuccess={showToast} />;
+      case 'transactions': return <Transactions businesses={businesses} user={user} />;
       case 'reports': return <Reports businesses={businesses} />;
       case 'businesses': return <BusinessManagement businesses={businesses} setBusinesses={setBusinesses} onSuccess={showToast} />;
       case 'users': return <UserManagement businesses={businesses} onSuccess={showToast} />;

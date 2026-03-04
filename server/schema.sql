@@ -94,3 +94,20 @@ INSERT INTO users (name, email, phone, role, access_level, features) VALUES
   ('Admin FinanceHub', 'admin@financehub.com', '080-000-0000', 'เจ้าของธุรกิจ', 'Full Access', 
    ARRAY['Dashboard','Income','Expense','Transactions','Edit','Delete','Reports','Businesses','Users'])
 ON CONFLICT (email) DO NOTHING;
+
+-- ตาราง transaction_images (NEW - รูปภาพหลักฐาน)
+CREATE TABLE IF NOT EXISTS transaction_images (
+  id SERIAL PRIMARY KEY,
+  transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
+  file_name VARCHAR(255),
+  file_data TEXT,
+  file_type VARCHAR(50),
+  uploaded_by_name VARCHAR(100) DEFAULT 'Admin',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- เพิ่ม columns ใน audit_logs ถ้ายังไม่มี
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_name VARCHAR(100);
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS field_changed VARCHAR(100);
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS old_value TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS new_value TEXT;
