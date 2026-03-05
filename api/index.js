@@ -1,12 +1,20 @@
-// Vercel Serverless Function Entry Point
+<< 'EOF'
 import app from '../server/index.js';
 
 export default async function handler(req, res) {
-  // Vercel routes /api/xxx -> /api so we need to restore the real path
-  // The real path is available in the original URL
+  if (!req.url.startsWith('/api/')) {
+    req.url = '/api' + req.url;
+  }
   return new Promise((resolve, reject) => {
     app(req, res);
     res.on('finish', resolve);
     res.on('error', reject);
   });
 }
+EOF
+
+
+
+
+
+
