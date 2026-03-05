@@ -82,12 +82,7 @@ FROM transactions t
 LEFT JOIN businesses b ON t.business_id = b.id
 LEFT JOIN users u ON t.created_by = u.id;
 
--- ข้อมูลตัวอย่าง (Demo Data)
-INSERT INTO businesses (name, type, income, expense, profit, growth, petty_cash, petty_cash_max, icon) VALUES
-  ('กาแฟ A', 'Cafe', 150000, 80000, 70000, 12.5, 15000, 20000, '☕'),
-  ('อาหาร B', 'Restaurant', 320000, 210000, 110000, -5.2, 5000, 30000, '🍱'),
-  ('เบเกอรี่ C', 'Bakery', 95000, 45000, 50000, 8.4, 8000, 10000, '🥐')
-ON CONFLICT DO NOTHING;
+-- (Demo data removed - ไม่ใส่ข้อมูลตัวอย่างอัตโนมัติแล้ว)
 
 -- Default Admin User
 INSERT INTO users (name, email, phone, role, access_level, features) VALUES
