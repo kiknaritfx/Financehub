@@ -80,14 +80,15 @@ route('put', '/api/businesses/:id', async (req, res) => {
       `UPDATE businesses SET
        name=$1, type=$2, petty_cash_max=$3, icon=$4, logo_type=$5,
        status=$6, petty_cash=COALESCE($7,petty_cash),
-       tax_name=$9, tax_id=$10, tax_address=$11,
-       departments=$12::TEXT[], income_categories=$13::TEXT[], expense_categories=$14::TEXT[],
+       tax_name=$8, tax_id=$9, tax_address=$10,
+       departments=$11::TEXT[], income_categories=$12::TEXT[], expense_categories=$13::TEXT[],
        updated_at=CURRENT_TIMESTAMP
-       WHERE id=$8 RETURNING *`,
+       WHERE id=$14 RETURNING *`,
       [name, type, petty_cash_max, icon, logo_type,
-       status, petty_cash||null, req.params.id,
+       status, petty_cash||null,
        tax_name||'', tax_id||'', tax_address||'',
-       toArr(departments), toArr(income_categories), toArr(expense_categories)]
+       toArr(departments), toArr(income_categories), toArr(expense_categories),
+       req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบธุรกิจ' });
     res.json(r.rows[0]);

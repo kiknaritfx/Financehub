@@ -637,7 +637,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
         created_by_name: user?.name || 'Admin'
       });
       onSuccess('บันทึกรายจ่ายสำเร็จ ✅');
-      setAmount(''); setNote(''); setImages(''); setSelectedBizId('');
+      setAmount(''); setNote(''); setSelectedBizId('');
       setImages([]);
     } catch (err) {
       alert('เกิดข้อผิดพลาด: ' + err.message);
@@ -1251,8 +1251,8 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
     };
     try {
       if (editingId) {
-        await businessAPI.update(editingId, data);
-        setBusinesses(prev => prev.map(b => b.id === editingId ? { ...b, ...data } : b));
+        const updated = await businessAPI.update(editingId, data);
+        setBusinesses(prev => prev.map(b => b.id === editingId ? { ...b, ...updated } : b));
         onSuccess('อัปเดตธุรกิจสำเร็จ ✅');
       } else {
         const created = await businessAPI.create(data);
