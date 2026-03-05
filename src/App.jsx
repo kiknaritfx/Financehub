@@ -82,7 +82,7 @@ const Drawer = ({ isOpen, onClose, title, children, description }) => {
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-500"><X size={20} /></button>
         </div>
-        <div className="flex-1 overflow-y-auto bg-slate-50/50">{children}</div>
+        <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50">{children}</div>
       </div>
     </div>
   );
@@ -1139,38 +1139,105 @@ const Transactions = ({ businesses, user }) => {
 };
 
 // ─── BUSINESS MANAGEMENT ───
+const DEFAULT_INCOME_CATS = [
+  'ยอดขายสินค้า (Sales)', 'รายได้จากการบริการ (Services)',
+  'รายได้ค่าเช่า (Rental Income)', 'ดอกเบี้ยรับ (Interest Income)',
+  'รายได้อื่นๆ (Other Income)',
+];
+const DEFAULT_EXPENSE_CATS = [
+  'ต้นทุนขาย/วัตถุดิบ (COGS)', 'เงินเดือนและค่าจ้าง (Salary)',
+  'ค่าเช่าสถานที่ (Rent)', 'ค่าสาธารณูปโภค (Utilities)',
+  'ค่าวัสดุสิ้นเปลือง (Supplies)', 'ค่าโฆษณาและการตลาด (Marketing)',
+  'ค่าซ่อมบำรุง (Maintenance)', 'ค่าขนส่ง (Transportation)',
+  'ค่าประกันภัย (Insurance)', 'ค่าเสื่อมราคา (Depreciation)',
+];
+
 const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [name, setName] = useState('');
-  const [type, setType] = useState('');
-  const [pettyCashMax, setPettyCashMax] = useState('');
-  const [selectedEmoji, setSelectedEmoji] = useState('🏪');
   const [loading, setLoading] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const handleDelete = async (biz) => {
-    setDeleting(true);
-    try {
-      await businessAPI.delete(biz.id);
-      setBusinesses(prev => prev.filter(b => b.id !== biz.id));
-      setDeleteModal(null);
-      onSuccess('ลบธุรกิจสำเร็จ ✅');
-    } catch (err) {
-      alert('ลบไม่สำเร็จ: ' + err.message);
-    } finally {
-      setDeleting(false);
-    }
+  const [name, setName] = useState('');
+  const [type, setType] = useState('');
+  const [pettyCashMax, setPettyCashMax] = useState('20000');
+  const [logoMode, setLogoMode] = useState('emoji');
+  const [selectedEmoji, setSelectedEmoji] = useState('🏪');
+  const [logoImage, setLogoImage] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [taxName, setTaxName] = useState('');
+  const [taxId, setTaxId] = useState('');
+  const [taxAddress, setTaxAddress] = useState('');
+  const [departments, setDepartments] = useState([]);
+  const [deptInput, setDeptInput] = useState('');
+  const [incomeCategories, setIncomeCategories] = useState([...DEFAULT_INCOME_CATS]);
+  const [expenseCategories, setExpenseCategories] = useState([...DEFAULT_EXPENSE_CATS]);
+
+  const resetForm = () => {
+    setName(''); setType(''); setPettyCashMax('20000');
+    setLogoMode('emoji'); setSelectedEmoji('🏪'); setLogoImage(null); setLogoPreview(null);
+    setTaxName(''); setTaxId(''); setTaxAddress('');
+    setDepartments([]); setDeptInput('');
+    setIncomeCategories([...DEFAULT_INCOME_CATS]);
+    setExpenseCategories([...DEFAULT_EXPENSE_CATS]);
   };
 
-  const openAdd = () => { setEditingId(null); setName(''); setType(''); setPettyCashMax(''); setSelectedEmoji('🏪'); setIsDrawerOpen(true); };
-  const openEdit = (biz) => { setEditingId(biz.id); setName(biz.name); setType(biz.type); setPettyCashMax(biz.petty_cash_max || ''); setSelectedEmoji(biz.icon || '🏪'); setIsDrawerOpen(true); };
+  const openAdd = () => { setEditingId(null); resetForm(); setIsDrawerOpen(true); };
+
+  const openEdit = (biz) => {
+    setEditingId(biz.id);
+    setName(biz.name || '');
+    setType(biz.type || '');
+    setPettyCashMax(String(biz.petty_cash_max || 20000));
+    setLogoMode(biz.logo_type === 'image' ? 'image' : 'emoji');
+    setSelectedEmoji(biz.logo_type !== 'image' ? (biz.icon || '🏪') : '🏪');
+    setLogoImage(biz.logo_type === 'image' ? biz.icon : null);
+    setLogoPreview(biz.logo_type === 'image' ? biz.icon : null);
+    setTaxName(biz.tax_name || '');
+    setTaxId(biz.tax_id || '');
+    setTaxAddress(biz.tax_address || '');
+    setDepartments(Array.isArray(biz.departments) ? biz.departments : []);
+    setIncomeCategories(Array.isArray(biz.income_categories) && biz.income_categories.length > 0 ? biz.income_categories : [...DEFAULT_INCOME_CATS]);
+    setExpenseCategories(Array.isArray(biz.expense_categories) && biz.expense_categories.length > 0 ? biz.expense_categories : [...DEFAULT_EXPENSE_CATS]);
+    setIsDrawerOpen(true);
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert('ขนาดไฟล์ต้องไม่เกิน 5MB'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => { setLogoImage(ev.target.result); setLogoPreview(ev.target.result); };
+    reader.readAsDataURL(file);
+  };
+
+  const addDept = () => {
+    const d = deptInput.trim();
+    if (!d) return;
+    if (departments.includes(d)) { alert('มีแผนกนี้อยู่แล้ว'); return; }
+    setDepartments(prev => [...prev, d]);
+    setDeptInput('');
+  };
+
+  const toggleCat = (list, setList, cat) => {
+    setList(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!name.trim()) return alert('กรุณากรอกชื่อธุรกิจ');
+    if (!type.trim()) return alert('กรุณากรอกประเภทธุรกิจ');
+    if (Number(pettyCashMax) < 0) return alert('วงเงินสดย่อยต้องมากกว่าหรือเท่ากับ 0');
     setLoading(true);
-    const data = { name, type, petty_cash_max: Number(pettyCashMax), icon: selectedEmoji, logo_type: 'emoji' };
+    const data = {
+      name: name.trim(), type: type.trim(),
+      petty_cash_max: Number(pettyCashMax),
+      logo_type: logoMode,
+      icon: logoMode === 'image' ? (logoImage || '🏪') : selectedEmoji,
+      tax_name: taxName.trim(), tax_id: taxId.trim(), tax_address: taxAddress.trim(),
+      departments, income_categories: incomeCategories, expense_categories: expenseCategories,
+    };
     try {
       if (editingId) {
         await businessAPI.update(editingId, data);
@@ -1182,11 +1249,19 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
         onSuccess('เพิ่มธุรกิจสำเร็จ ✅');
       }
       setIsDrawerOpen(false);
-    } catch (err) {
-      alert('เกิดข้อผิดพลาด: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { alert('เกิดข้อผิดพลาด: ' + err.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleDelete = async (biz) => {
+    setDeleting(true);
+    try {
+      await businessAPI.delete(biz.id);
+      setBusinesses(prev => prev.filter(b => b.id !== biz.id));
+      setDeleteModal(null);
+      onSuccess('ลบธุรกิจสำเร็จ ✅');
+    } catch (err) { alert('ลบไม่สำเร็จ: ' + err.message); }
+    finally { setDeleting(false); }
   };
 
   const toggleStatus = async (biz) => {
@@ -1194,102 +1269,365 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
     try {
       await businessAPI.update(biz.id, { status: newStatus });
       setBusinesses(prev => prev.map(b => b.id === biz.id ? { ...b, status: newStatus } : b));
-    } catch (err) {
-      alert('เกิดข้อผิดพลาด: ' + err.message);
-    }
+    } catch (err) { alert('เกิดข้อผิดพลาด: ' + err.message); }
   };
+
+  const fmt = (n) => new Intl.NumberFormat('th-TH').format(n || 0);
 
   return (
     <div className="space-y-6">
-      {/* Delete Confirm Modal */}
+
+      {/* Delete Modal */}
       <Modal isOpen={!!deleteModal} onClose={() => !deleting && setDeleteModal(null)} title="ยืนยันการลบธุรกิจ">
         <div className="text-center py-4">
-          <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">{deleteModal?.icon || '🏪'}</div>
+          <div className="w-16 h-16 bg-rose-50 border-2 border-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl overflow-hidden">
+            {deleteModal?.logo_type === 'image' && deleteModal?.icon
+              ? <img src={deleteModal.icon} className="w-full h-full object-cover rounded-full" alt="" />
+              : (deleteModal?.icon || '🏪')}
+          </div>
           <h4 className="text-lg font-bold text-slate-800 mb-1">ลบ "{deleteModal?.name}"?</h4>
           <p className="text-slate-500 text-sm mb-2">ข้อมูลธุรกิจและรายการธุรกรรมทั้งหมดจะถูกลบถาวร</p>
           <p className="text-rose-600 text-xs font-bold bg-rose-50 px-4 py-2 rounded-xl mb-6">⚠️ ไม่สามารถกู้คืนข้อมูลได้</p>
           <div className="flex gap-3 justify-center">
-            <button onClick={() => setDeleteModal(null)} disabled={deleting} className="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100">ยกเลิก</button>
-            <button onClick={() => handleDelete(deleteModal)} disabled={deleting} className="px-6 py-3 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2">
+            <button onClick={() => setDeleteModal(null)} disabled={deleting}
+              className="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100">ยกเลิก</button>
+            <button onClick={() => handleDelete(deleteModal)} disabled={deleting}
+              className="px-6 py-3 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-2">
               {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} ยืนยันลบ
             </button>
           </div>
         </div>
       </Modal>
 
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">จัดการธุรกิจ (Business)</h2>
           <p className="text-slate-500 text-sm mt-1">ตั้งค่าและจัดการสาขาทั้งหมด</p>
         </div>
-        <button onClick={openAdd} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm font-bold flex items-center gap-2 shadow-lg">
+        <button onClick={openAdd}
+          className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-100 transition-all">
           <Plus size={18} /> เพิ่มธุรกิจใหม่
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {businesses.map(biz => (
-          <div key={biz.id} className={`bg-white rounded-2xl p-6 border transition-all ${biz.status === 'Active' ? 'border-slate-200 shadow-sm hover:shadow-md' : 'border-slate-200 opacity-60'}`}>
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-2xl border border-blue-100">{biz.icon || '🏪'}</div>
+      {/* Business Cards */}
+      {businesses.length === 0 ? (
+        <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
+          <div className="text-5xl mb-4">🏪</div>
+          <h3 className="text-lg font-bold text-slate-700 mb-2">ยังไม่มีธุรกิจ</h3>
+          <p className="text-slate-400 text-sm mb-6">เริ่มต้นโดยการเพิ่มธุรกิจแรกของคุณ</p>
+          <button onClick={openAdd} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">
+            + เพิ่มธุรกิจใหม่
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {businesses.map(biz => (
+            <div key={biz.id} className={`bg-white rounded-2xl border transition-all ${biz.status === 'Active' ? 'border-slate-200 shadow-sm hover:shadow-md' : 'border-slate-200 opacity-60'}`}>
+              <div className="p-5">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-2xl border border-slate-100 overflow-hidden shrink-0">
+                      {biz.logo_type === 'image' && biz.icon
+                        ? <img src={biz.icon} className="w-full h-full object-cover" alt={biz.name} />
+                        : (biz.icon || '🏪')}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-800">{biz.name}</h3>
+                      <span className="text-xs text-slate-500">{biz.type}</span>
+                    </div>
+                  </div>
+                  <Badge type={biz.status === 'Active' ? 'income' : 'default'}>
+                    {biz.status === 'Active' ? 'เปิด' : 'ปิด'}
+                  </Badge>
+                </div>
+
+                {/* Petty cash bar */}
+                <div className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100">
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-slate-500 font-medium">เงินสดย่อย</span>
+                    <span className="font-bold text-slate-700">
+                      ฿{fmt(biz.petty_cash)} <span className="text-slate-400 font-normal">/ ฿{fmt(biz.petty_cash_max)}</span>
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-1.5">
+                    <div className={`h-1.5 rounded-full transition-all ${((biz.petty_cash||0)/(biz.petty_cash_max||1)) < 0.3 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${Math.min(100, ((biz.petty_cash||0)/(biz.petty_cash_max||1))*100)}%` }} />
+                  </div>
+                </div>
+
+                {/* Departments */}
+                {Array.isArray(biz.departments) && biz.departments.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {biz.departments.slice(0, 3).map(d => (
+                      <span key={d} className="px-2.5 py-1 bg-blue-50 text-blue-600 text-xs rounded-full border border-blue-100 font-medium">{d}</span>
+                    ))}
+                    {biz.departments.length > 3 && (
+                      <span className="px-2.5 py-1 bg-slate-100 text-slate-400 text-xs rounded-full">+{biz.departments.length - 3}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Card Actions */}
+              <div className="flex gap-2 px-5 pb-5 border-t border-slate-100 pt-4">
+                <button onClick={() => openEdit(biz)}
+                  className="flex-1 py-2.5 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-slate-700 text-sm font-bold rounded-xl border border-slate-200 flex items-center justify-center gap-2 transition-all">
+                  <Edit2 size={15} /> ตั้งค่า
+                </button>
+                <button onClick={() => toggleStatus(biz)} title={biz.status === 'Active' ? 'ปิดชั่วคราว' : 'เปิดใช้งาน'}
+                  className={`py-2.5 px-3 text-sm font-bold rounded-xl border flex items-center transition-all ${biz.status === 'Active' ? 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'}`}>
+                  <Power size={15} />
+                </button>
+                <button onClick={() => setDeleteModal(biz)} title="ลบธุรกิจ"
+                  className="py-2.5 px-3 bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-100 hover:text-rose-700 text-sm font-bold rounded-xl flex items-center transition-all">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── DRAWER ─── */}
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        title={editingId ? `ตั้งค่า: ${name}` : 'เพิ่มธุรกิจใหม่'}
+        description={editingId ? 'แก้ไขข้อมูลและการตั้งค่าธุรกิจ' : 'กรอกข้อมูลเพื่อสร้างธุรกิจใหม่'}
+      >
+        <form onSubmit={handleSave} className="flex flex-col h-full">
+
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
+
+            {/* ── 1: ข้อมูลพื้นฐาน (FR2) ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
+                <h3 className="font-bold text-slate-800">ข้อมูลพื้นฐาน</h3>
+              </div>
+              <div className="space-y-4">
                 <div>
-                  <h3 className="font-bold text-slate-800 text-lg">{biz.name}</h3>
-                  <span className="text-sm text-slate-500">{biz.type}</span>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">ชื่อธุรกิจ / สาขา <span className="text-rose-500">*</span></label>
+                  <input type="text" required value={name} onChange={e => setName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base transition-all"
+                    placeholder="เช่น กาแฟ สาขา A" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">ประเภทธุรกิจ <span className="text-rose-500">*</span></label>
+                    <input type="text" required value={type} onChange={e => setType(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base transition-all"
+                      placeholder="เช่น Cafe" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">วงเงินสดย่อยสูงสุด <span className="text-rose-500">*</span></label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">฿</span>
+                      <input type="number" required min="0" value={pettyCashMax} onChange={e => setPettyCashMax(e.target.value)}
+                        className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base transition-all"
+                        placeholder="20000" />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <Badge type={biz.status === 'Active' ? 'income' : 'default'}>{biz.status === 'Active' ? 'เปิด' : 'ปิด'}</Badge>
-            </div>
-            <div className="flex gap-2 pt-4 border-t border-slate-100">
-              <button onClick={() => openEdit(biz)} className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-bold rounded-xl border border-slate-200 flex items-center justify-center gap-2">
-                <Edit2 size={16} /> ตั้งค่า
-              </button>
-              <button onClick={() => toggleStatus(biz)} className={`py-2 px-3 text-sm font-bold rounded-xl border flex items-center ${biz.status === 'Active' ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-emerald-50 border-emerald-200 text-emerald-600'}`}>
-                <Power size={16} />
-              </button>
-              <button onClick={() => setDeleteModal(biz)} className="py-2 px-3 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 text-sm font-bold rounded-xl flex items-center">
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+            </section>
 
-      <Drawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title={editingId ? 'ตั้งค่าธุรกิจ' : 'เพิ่มธุรกิจใหม่'}>
-        <form onSubmit={handleSave} className="p-6 space-y-6 pb-24">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">ชื่อธุรกิจ *</label>
-              <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="เช่น กาแฟ D" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">ประเภทธุรกิจ *</label>
-              <input type="text" required value={type} onChange={e => setType(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="เช่น Cafe" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">วงเงินสดย่อย (฿)</label>
-              <input type="number" value={pettyCashMax} onChange={e => setPettyCashMax(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="20000" />
-            </div>
+            {/* ── 2: โลโก้ (FR3) ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
+                <h3 className="font-bold text-slate-800">โลโก้ธุรกิจ</h3>
+              </div>
+              <div className="flex bg-slate-100 rounded-xl p-1 mb-5 w-fit">
+                <button type="button" onClick={() => setLogoMode('emoji')}
+                  className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${logoMode === 'emoji' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
+                  😊 Emoji
+                </button>
+                <button type="button" onClick={() => setLogoMode('image')}
+                  className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${logoMode === 'image' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
+                  🖼 อัพโหลดโลโก้
+                </button>
+              </div>
+
+              {logoMode === 'emoji' ? (
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-16 h-16 rounded-2xl bg-blue-50 border-2 border-blue-200 flex items-center justify-center text-4xl shadow-sm">
+                      {selectedEmoji}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">Emoji ที่เลือก</p>
+                      <p className="text-xs text-slate-400 mt-0.5">คลิก Emoji ด้านล่างเพื่อเปลี่ยน</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-8 gap-2">
+                    {EMOJIS.map(e => (
+                      <button key={e} type="button" onClick={() => setSelectedEmoji(e)}
+                        className={`w-10 h-10 flex items-center justify-center text-xl rounded-xl border-2 transition-all ${selectedEmoji === e ? 'border-blue-500 bg-blue-50 scale-110 shadow-sm' : 'border-slate-100 hover:border-blue-300 hover:bg-blue-50'}`}>
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  {logoPreview ? (
+                    <div className="flex items-center gap-4">
+                      <img src={logoPreview} alt="Logo preview" className="w-32 h-32 rounded-2xl object-cover border-2 border-slate-200 shadow-sm" />
+                      <div className="space-y-2">
+                        <label className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-sm font-bold cursor-pointer hover:bg-blue-100 transition-all">
+                          <UploadCloud size={16} /> เปลี่ยนรูปภาพ
+                          <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                        </label>
+                        <button type="button" onClick={() => { setLogoImage(null); setLogoPreview(null); }}
+                          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-sm font-bold hover:bg-rose-100 w-full transition-all">
+                          <Trash2 size={16} /> ลบรูปภาพ
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all">
+                      <UploadCloud size={32} className="text-slate-400 mb-2" />
+                      <p className="text-sm font-semibold text-slate-600">คลิกหรือลากไฟล์มาวางที่นี่</p>
+                      <p className="text-xs text-slate-400 mt-1">JPG, PNG, SVG ขนาดไม่เกิน 5MB</p>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                    </label>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* ── 3: ข้อมูลภาษี (FR4) ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                <h3 className="font-bold text-slate-800">ข้อมูลบริษัทและภาษี</h3>
+                <span className="text-xs text-slate-400 font-normal bg-slate-100 px-2 py-0.5 rounded-full">ไม่บังคับ</span>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">ชื่อนิติบุคคล / ชื่อจดทะเบียน</label>
+                  <input type="text" value={taxName} onChange={e => setTaxName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base transition-all"
+                    placeholder="เช่น บริษัท กาแฟดี จำกัด" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">เลขประจำตัวผู้เสียภาษี</label>
+                  <input type="text" value={taxId} onChange={e => setTaxId(e.target.value.slice(0, 13))} maxLength={13}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base font-mono tracking-widest transition-all"
+                    placeholder="0000000000000" />
+                  <p className="text-xs text-slate-400 mt-1 text-right">{taxId.length}/13 หลัก</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">ที่อยู่จดทะเบียน</label>
+                  <textarea value={taxAddress} onChange={e => setTaxAddress(e.target.value)} rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base resize-none transition-all"
+                    placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" />
+                </div>
+              </div>
+            </section>
+
+            {/* ── 4: แผนก (FR5) ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">4</span>
+                <h3 className="font-bold text-slate-800">แผนก (Department)</h3>
+              </div>
+              <div className="flex gap-2 mb-3">
+                <input type="text" value={deptInput} onChange={e => setDeptInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDept(); } }}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all"
+                  placeholder="ชื่อแผนก เช่น ครัว, บาร์, เซอร์วิส..." />
+                <button type="button" onClick={addDept}
+                  className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 flex items-center gap-1.5 transition-all shrink-0">
+                  <Plus size={16} /> เพิ่ม
+                </button>
+              </div>
+              {departments.length > 0 ? (
+                <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 min-h-[52px]">
+                  {departments.map(d => (
+                    <span key={d} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm">
+                      {d}
+                      <button type="button" onClick={() => setDepartments(prev => prev.filter(x => x !== d))}
+                        className="w-4 h-4 rounded-full bg-slate-200 hover:bg-rose-500 hover:text-white text-slate-500 flex items-center justify-center transition-all text-xs leading-none">
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-sm text-slate-400">
+                  ยังไม่มีแผนก — พิมพ์ชื่อแล้วกด "เพิ่ม" หรือกด Enter
+                </div>
+              )}
+            </section>
+
+            {/* ── 5: หมวดหมู่บัญชี (FR6) ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">5</span>
+                <h3 className="font-bold text-slate-800">หมวดหมู่บัญชี</h3>
+              </div>
+              <p className="text-xs text-slate-500 mb-4 ml-8">หมวดที่ติ๊ก ✅ จะปรากฏให้พนักงานเลือกตอนบันทึกรายรับ-รายจ่าย</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span>
+                    <p className="text-sm font-bold text-emerald-800">หมวดรายรับ</p>
+                  </div>
+                  <div className="space-y-1">
+                    {DEFAULT_INCOME_CATS.map(cat => (
+                      <label key={cat} className="flex items-center gap-3 p-2 rounded-xl hover:bg-emerald-100 cursor-pointer transition-all">
+                        <input type="checkbox" checked={incomeCategories.includes(cat)}
+                          onChange={() => toggleCat(incomeCategories, setIncomeCategories, cat)}
+                          className="w-4 h-4 rounded text-emerald-600 border-slate-300 cursor-pointer" />
+                        <span className="text-sm text-slate-700">{cat}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-rose-50/50 rounded-2xl p-4 border border-rose-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-2.5 h-2.5 bg-rose-500 rounded-full"></span>
+                    <p className="text-sm font-bold text-rose-800">หมวดรายจ่าย</p>
+                  </div>
+                  <div className="space-y-1">
+                    {DEFAULT_EXPENSE_CATS.map(cat => (
+                      <label key={cat} className="flex items-center gap-3 p-2 rounded-xl hover:bg-rose-100 cursor-pointer transition-all">
+                        <input type="checkbox" checked={expenseCategories.includes(cat)}
+                          onChange={() => toggleCat(expenseCategories, setExpenseCategories, cat)}
+                          className="w-4 h-4 rounded text-rose-600 border-slate-300 cursor-pointer" />
+                        <span className="text-sm text-slate-700">{cat}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-3">เลือกไอคอน</label>
-            <div className="grid grid-cols-8 gap-2">
-              {EMOJIS.map(e => (
-                <button key={e} type="button" onClick={() => setSelectedEmoji(e)} className={`text-2xl w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:scale-110 ${selectedEmoji === e ? 'bg-blue-100 ring-2 ring-blue-500' : 'hover:bg-slate-100'}`}>{e}</button>
-              ))}
-            </div>
-          </div>
-          <div className="fixed bottom-0 right-0 w-full max-w-xl bg-white border-t border-slate-200 p-4 flex gap-3 z-20">
-            <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 px-6 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100">ยกเลิก</button>
-            <button type="submit" disabled={loading} className="flex-1 px-6 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
-              {loading ? <><Spinner /> บันทึก...</> : 'บันทึก'}
+
+          {/* Sticky Footer (FR7) */}
+          <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4 flex gap-3">
+            <button type="button" onClick={() => setIsDrawerOpen(false)}
+              className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100 transition-all">
+              ยกเลิก
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-100">
+              {loading ? <><Loader2 size={16} className="animate-spin" /> กำลังบันทึก...</> : <><Check size={16} /> บันทึกข้อมูล</>}
             </button>
           </div>
         </form>
       </Drawer>
+
     </div>
   );
 };
+
 
 // ─── REPORTS ───
 const Reports = ({ businesses }) => {
