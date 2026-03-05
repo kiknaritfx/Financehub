@@ -79,22 +79,27 @@ app.put('/api/businesses/:id', async (req, res) => {
 
 app.delete('/api/businesses/:id', async (req, res) => {
   try {
-    // ลบ images ก่อน (FK chain)
+    const bizId = req.params.id;
+    // ลบ images (ถ้ามีตาราง)
     await pool.query(`
       DELETE FROM transaction_images 
       WHERE transaction_id IN (SELECT id FROM transactions WHERE business_id=$1)
-    `, [req.params.id]);
-    // ลบ audit logs
+    `, [bizId]).catch(() => {}); // ไม่ให้ error ถ้าตารางยังไม่มี
+    // ลบ audit logs (ถ้ามีตาราง)
     await pool.query(`
       DELETE FROM audit_logs 
       WHERE transaction_id IN (SELECT id FROM transactions WHERE business_id=$1)
-    `, [req.params.id]);
+    `, [bizId]).catch(() => {});
     // ลบ transactions
-    await pool.query('DELETE FROM transactions WHERE business_id=$1', [req.params.id]);
+    await pool.query('DELETE FROM transactions WHERE business_id=$1', [bizId]);
     // ลบ business
-    await pool.query('DELETE FROM businesses WHERE id=$1', [req.params.id]);
-    res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const result = await pool.query('DELETE FROM businesses WHERE id=$1 RETURNING id', [bizId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'ไม่พบธุรกิจนี้' });
+    res.json({ message: 'ลบสำเร็จ' });
+  } catch (err) {
+    console.error('Delete business error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── TRANSACTIONS ───
