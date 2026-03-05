@@ -1676,7 +1676,7 @@ export default function App() {
   });
   const [currentView, setCurrentView] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [businesses, setBusinesses] = useState(MOCK_BUSINESSES);
+  const [businesses, setBusinesses] = useState([]);
   const [toast, setToast] = useState(null);
 
   const handleLogin = (userData) => {
@@ -1693,7 +1693,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     businessAPI.getAll()
-      .then(data => { if (Array.isArray(data) && data.length > 0) setBusinesses(data); })
+      .then(data => { if (Array.isArray(data)) setBusinesses(data); })
       .catch(() => {});
   }, [user]);
 
