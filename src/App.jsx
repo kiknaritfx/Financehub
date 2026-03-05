@@ -90,6 +90,17 @@ const Drawer = ({ isOpen, onClose, title, children, description }) => {
 
 const Spinner = () => <Loader2 size={20} className="animate-spin text-blue-500" />;
 
+// BizIcon: แสดง icon ธุรกิจ รองรับทั้ง emoji และ base64 image
+const BizIcon = ({ biz, size = 'md' }) => {
+  const sz = size === 'sm' ? 'w-6 h-6 text-base' : size === 'lg' ? 'w-12 h-12 text-2xl' : 'w-8 h-8 text-xl';
+  if (biz?.logo_type === 'image' && biz?.icon && biz.icon.startsWith('data:')) {
+    return <img src={biz.icon} alt={biz.name} className={`${sz} rounded-lg object-cover shrink-0`} />;
+  }
+  return <span className={`${sz} flex items-center justify-center shrink-0`}>{biz?.icon || '🏪'}</span>;
+};
+
+
+
 const Toast = ({ message, type = 'success', onClose }) => {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
   return (
@@ -426,7 +437,7 @@ const Dashboard = ({ setCurrentView }) => {
             <div className="bg-blue-600 p-6 relative shrink-0">
               <button onClick={() => setSelectedBiz(null)} className="absolute top-4 right-4 text-white/80 hover:text-white p-1 rounded-full hover:bg-white/10"><X size={24} /></button>
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center text-3xl">{selectedBiz.icon || '🏪'}</div>
+                <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center overflow-hidden"><BizIcon biz={selectedBiz} size="lg" /></div>
                 <div>
                   <h2 className="text-2xl font-bold text-white">ร้าน{selectedBiz.name}</h2>
                   <p className="text-blue-100 text-sm">{selectedBiz.type}</p>
@@ -520,7 +531,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
               <div key={biz.id} onClick={() => setSelectedBizId(biz.id)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedBizId == biz.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">{biz.icon}</span>
+                    <BizIcon biz={biz} size="sm" />
                     <span className="font-bold text-slate-700">{biz.name}</span>
                   </div>
                   {selectedBizId == biz.id && <Check size={18} className="text-emerald-600" />}
@@ -649,7 +660,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
             {businesses.filter(b => b.status === 'Active').map(biz => (
               <div key={biz.id} onClick={() => setSelectedBizId(biz.id)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedBizId == biz.id ? 'border-rose-500 bg-rose-50' : 'border-slate-200 hover:border-rose-300'}`}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2"><span className="text-xl">{biz.icon}</span><span className="font-bold text-slate-700">{biz.name}</span></div>
+                  <div className="flex items-center gap-2"><BizIcon biz={biz} size="sm" /><span className="font-bold text-slate-700">{biz.name}</span></div>
                   {selectedBizId == biz.id && <Check size={18} className="text-rose-600" />}
                 </div>
               </div>
@@ -1673,7 +1684,7 @@ const Reports = ({ businesses }) => {
             <button onClick={() => setSelectedBiz('all')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${selectedBiz === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'}`}>รวมทุกร้าน</button>
             {activeBiz.map(biz => (
               <button key={biz.id} onClick={() => setSelectedBiz(String(biz.id))} className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${selectedBiz === String(biz.id) ? 'bg-blue-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
-                <span>{biz.icon}</span>ร้าน{biz.name}
+                <BizIcon biz={biz} size="sm" />ร้าน{biz.name}
               </button>
             ))}
           </div>
@@ -1963,7 +1974,7 @@ const UserManagement = ({ businesses, onSuccess }) => {
               {businesses.filter(biz => biz.status === 'Active').map(biz => (
                 <label key={biz.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedBizs.includes(biz.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
                   <input type="checkbox" checked={selectedBizs.includes(biz.id)} onChange={() => toggleBiz(biz.id)} className="w-5 h-5 text-blue-600 rounded" />
-                  <span className="text-xl">{biz.icon}</span>
+                  <BizIcon biz={biz} size="sm" />
                   <span className="text-sm font-bold text-slate-700">ร้าน{biz.name}</span>
                 </label>
               ))}

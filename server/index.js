@@ -75,29 +75,26 @@ route('put', '/api/businesses/:id', async (req, res) => {
   const { name, type, petty_cash_max, icon, logo_type, status, petty_cash,
           tax_name, tax_id, tax_address, departments, income_categories, expense_categories } = req.body;
   try {
-    // แปลง Array เป็น PostgreSQL array format
-    const toArr = (v) => Array.isArray(v) ? v : (v ? [v] : null);
+    const toArr = (v) => Array.isArray(v) ? v : (v != null ? [v] : []);
     const r = await pool.query(
       `UPDATE businesses SET
-       name=COALESCE($1,name), type=COALESCE($2,type),
-       petty_cash_max=COALESCE($3,petty_cash_max), icon=COALESCE($4,icon),
-       logo_type=COALESCE($5,logo_type), status=COALESCE($6,status),
-       petty_cash=COALESCE($7,petty_cash),
-       tax_name=COALESCE($9,tax_name), tax_id=COALESCE($10,tax_id),
-       tax_address=COALESCE($11,tax_address),
-       departments=COALESCE($12::TEXT[],departments),
-       income_categories=COALESCE($13::TEXT[],income_categories),
-       expense_categories=COALESCE($14::TEXT[],expense_categories),
+       name=$1, type=$2, petty_cash_max=$3, icon=$4, logo_type=$5,
+       status=$6, petty_cash=COALESCE($7,petty_cash),
+       tax_name=$9, tax_id=$10, tax_address=$11,
+       departments=$12::TEXT[], income_categories=$13::TEXT[], expense_categories=$14::TEXT[],
        updated_at=CURRENT_TIMESTAMP
        WHERE id=$8 RETURNING *`,
-      [name||null, type||null, petty_cash_max||null, icon||null,
-       logo_type||null, status||null, petty_cash||null, req.params.id,
-       tax_name||null, tax_id||null, tax_address||null,
+      [name, type, petty_cash_max, icon, logo_type,
+       status, petty_cash||null, req.params.id,
+       tax_name||'', tax_id||'', tax_address||'',
        toArr(departments), toArr(income_categories), toArr(expense_categories)]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบธุรกิจ' });
     res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('PUT business error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 route('delete', '/api/businesses/:id', async (req, res) => {
@@ -289,13 +286,18 @@ route('post', '/api/users', async (req, res) => {
 route('put', '/api/users/:id', async (req, res) => {
   const { name, email, phone, role, business_ids, features, access_level } = req.body;
   try {
+    const toIntArr = (v) => Array.isArray(v) ? v.map(Number) : [];
+    const toStrArr = (v) => Array.isArray(v) ? v : [];
     const r = await pool.query(
-      'UPDATE users SET name=$1,email=$2,phone=$3,role=$4,business_ids=$5,features=$6,access_level=$7 WHERE id=$8 RETURNING id,name,email,phone,role,business_ids,features,access_level',
-      [name, email, phone, role, business_ids || [], features || [], access_level, req.params.id]
+      'UPDATE users SET name=$1,email=$2,phone=$3,role=$4,business_ids=$5::INTEGER[],features=$6::TEXT[],access_level=$7 WHERE id=$8 RETURNING id,name,email,phone,role,business_ids,features,access_level',
+      [name, email, phone, role, toIntArr(business_ids), toStrArr(features), access_level, req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
     res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('PUT user error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 route('delete', '/api/users/:id', async (req, res) => {
