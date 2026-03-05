@@ -75,6 +75,8 @@ route('put', '/api/businesses/:id', async (req, res) => {
   const { name, type, petty_cash_max, icon, logo_type, status, petty_cash,
           tax_name, tax_id, tax_address, departments, income_categories, expense_categories } = req.body;
   try {
+    // แปลง Array เป็น PostgreSQL array format
+    const toArr = (v) => Array.isArray(v) ? v : (v ? [v] : null);
     const r = await pool.query(
       `UPDATE businesses SET
        name=COALESCE($1,name), type=COALESCE($2,type),
@@ -83,14 +85,15 @@ route('put', '/api/businesses/:id', async (req, res) => {
        petty_cash=COALESCE($7,petty_cash),
        tax_name=COALESCE($9,tax_name), tax_id=COALESCE($10,tax_id),
        tax_address=COALESCE($11,tax_address),
-       departments=COALESCE($12,departments),
-       income_categories=COALESCE($13,income_categories),
-       expense_categories=COALESCE($14,expense_categories),
+       departments=COALESCE($12::TEXT[],departments),
+       income_categories=COALESCE($13::TEXT[],income_categories),
+       expense_categories=COALESCE($14::TEXT[],expense_categories),
        updated_at=CURRENT_TIMESTAMP
        WHERE id=$8 RETURNING *`,
-      [name, type, petty_cash_max, icon, logo_type, status, petty_cash, req.params.id,
+      [name||null, type||null, petty_cash_max||null, icon||null,
+       logo_type||null, status||null, petty_cash||null, req.params.id,
        tax_name||null, tax_id||null, tax_address||null,
-       departments||null, income_categories||null, expense_categories||null]
+       toArr(departments), toArr(income_categories), toArr(expense_categories)]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบธุรกิจ' });
     res.json(r.rows[0]);
