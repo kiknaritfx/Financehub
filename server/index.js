@@ -15,43 +15,52 @@ app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
+// Auto-migration on startup
 async function runMigrations() {
   try {
-    const schemaSQL = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
-    await pool.query(schemaSQL);
-    console.log('✅ DB migrations ok');
+    const sql = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
+    await pool.query(sql);
+    console.log('✅ DB ok');
   } catch (err) {
-    console.error('⚠️ Migration warning:', err.message);
+    console.error('⚠️ Migration:', err.message);
   }
 }
 runMigrations();
 
-app.get('/api/health', async (req, res) => {
+// ─── Helper: register route with both /api/xxx and /xxx (Vercel fallback) ───
+function route(method, path, handler) {
+  app[method](path, handler);
+  app[method](path.replace('/api/', '/'), handler);
+}
+
+// ─── HEALTH ───
+route('get', '/api/health', async (req, res) => {
   try { await pool.query('SELECT 1'); res.json({ status: 'ok', db: 'connected' }); }
   catch (err) { res.status(500).json({ status: 'error', error: err.message }); }
 });
 
-app.post('/api/login', async (req, res) => {
+// ─── LOGIN ───
+route('post', '/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (result.rows.length === 0) return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+    const result = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+    if (!result.rows.length) return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
     const user = result.rows[0];
-    const isAdmin = email === 'admin@financehub.com' && password === 'admin1234';
-    const hasPassword = user.password_hash && user.password_hash === password;
-    if (!isAdmin && !hasPassword) return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
-    const { password_hash, invite_token, ...safeUser } = user;
-    res.json({ success: true, user: safeUser });
+    const ok = (email === 'admin@financehub.com' && password === 'admin1234')
+      || (user.password_hash && user.password_hash === password);
+    if (!ok) return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+    const { password_hash, invite_token, ...safe } = user;
+    res.json({ success: true, user: safe });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── BUSINESSES ───
-app.get('/api/businesses', async (req, res) => {
+route('get', '/api/businesses', async (req, res) => {
   try { res.json((await pool.query('SELECT * FROM businesses ORDER BY id')).rows); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/businesses', async (req, res) => {
+route('post', '/api/businesses', async (req, res) => {
   const { name, type, petty_cash_max, icon, logo_type, status } = req.body;
   try {
     const r = await pool.query(
@@ -62,7 +71,7 @@ app.post('/api/businesses', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/businesses/:id', async (req, res) => {
+route('put', '/api/businesses/:id', async (req, res) => {
   const { name, type, petty_cash_max, icon, logo_type, status, petty_cash } = req.body;
   try {
     const r = await pool.query(
@@ -73,28 +82,24 @@ app.put('/api/businesses/:id', async (req, res) => {
        WHERE id=$8 RETURNING *`,
       [name, type, petty_cash_max, icon, logo_type, status, petty_cash, req.params.id]
     );
+    if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบธุรกิจ' });
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/businesses/:id', async (req, res) => {
+route('delete', '/api/businesses/:id', async (req, res) => {
+  const bizId = req.params.id;
   try {
-    const bizId = req.params.id;
-    // ลบ images (ถ้ามีตาราง)
-    await pool.query(`
-      DELETE FROM transaction_images 
-      WHERE transaction_id IN (SELECT id FROM transactions WHERE business_id=$1)
-    `, [bizId]).catch(() => {}); // ไม่ให้ error ถ้าตารางยังไม่มี
-    // ลบ audit logs (ถ้ามีตาราง)
-    await pool.query(`
-      DELETE FROM audit_logs 
-      WHERE transaction_id IN (SELECT id FROM transactions WHERE business_id=$1)
-    `, [bizId]).catch(() => {});
-    // ลบ transactions
+    // ลบ FK chain ทั้งหมด (ใช้ catch แต่ละขั้นตอนเพื่อไม่ให้ fail)
+    await pool.query(
+      'DELETE FROM transaction_images WHERE transaction_id IN (SELECT id FROM transactions WHERE business_id=$1)', [bizId]
+    ).catch(() => {});
+    await pool.query(
+      'DELETE FROM audit_logs WHERE transaction_id IN (SELECT id FROM transactions WHERE business_id=$1)', [bizId]
+    ).catch(() => {});
     await pool.query('DELETE FROM transactions WHERE business_id=$1', [bizId]);
-    // ลบ business
-    const result = await pool.query('DELETE FROM businesses WHERE id=$1 RETURNING id', [bizId]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'ไม่พบธุรกิจนี้' });
+    const r = await pool.query('DELETE FROM businesses WHERE id=$1 RETURNING id', [bizId]);
+    if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบธุรกิจ' });
     res.json({ message: 'ลบสำเร็จ' });
   } catch (err) {
     console.error('Delete business error:', err.message);
@@ -103,7 +108,7 @@ app.delete('/api/businesses/:id', async (req, res) => {
 });
 
 // ─── TRANSACTIONS ───
-app.get('/api/transactions', async (req, res) => {
+route('get', '/api/transactions', async (req, res) => {
   const { business_id, type, start, end, limit = 100 } = req.query;
   try {
     let q = 'SELECT * FROM transactions_with_names WHERE 1=1';
@@ -114,32 +119,28 @@ app.get('/api/transactions', async (req, res) => {
     if (end) { q += ` AND date<=$${i++}`; p.push(end + ' 23:59:59'); }
     q += ` ORDER BY created_at DESC LIMIT $${i}`;
     p.push(limit);
-
     const result = await pool.query(q, p);
     const txns = result.rows;
-
-    // นับจำนวนรูปภาพ
+    // นับรูปภาพ
     if (txns.length > 0) {
       const ids = txns.map(t => t.id);
-      const imgCounts = await pool.query(
-        'SELECT transaction_id, COUNT(*) as count FROM transaction_images WHERE transaction_id=ANY($1) GROUP BY transaction_id',
-        [ids]
-      );
+      const imgC = await pool.query(
+        'SELECT transaction_id,COUNT(*) as count FROM transaction_images WHERE transaction_id=ANY($1) GROUP BY transaction_id', [ids]
+      ).catch(() => ({ rows: [] }));
       const cm = {};
-      imgCounts.rows.forEach(r => { cm[r.transaction_id] = parseInt(r.count); });
+      imgC.rows.forEach(r => { cm[r.transaction_id] = parseInt(r.count); });
       txns.forEach(t => { t.image_count = cm[t.id] || 0; });
     }
     res.json(txns);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/transactions', async (req, res) => {
+route('post', '/api/transactions', async (req, res) => {
   const { business_id, type, category, amount, date, payment_cash, payment_transfer,
     payment_card, petty_cash, note, images, created_by_name } = req.body;
   try {
     const cnt = parseInt((await pool.query('SELECT COUNT(*) FROM transactions')).rows[0].count) + 1;
     const txn_id = `TRX-${String(cnt).padStart(4, '0')}`;
-
     const result = await pool.query(
       `INSERT INTO transactions (txn_id,business_id,type,category,amount,date,
        payment_cash,payment_transfer,payment_card,petty_cash,note)
@@ -148,47 +149,42 @@ app.post('/api/transactions', async (req, res) => {
        payment_cash || 0, payment_transfer || 0, payment_card || 0, petty_cash || false, note]
     );
     const txn = result.rows[0];
-
     // บันทึกรูปภาพ
     if (images && images.length > 0) {
       for (const img of images) {
         await pool.query(
           'INSERT INTO transaction_images (transaction_id,file_name,file_data,file_type,uploaded_by_name) VALUES ($1,$2,$3,$4,$5)',
           [txn.id, img.name, img.data, img.type, created_by_name || 'Admin']
-        );
+        ).catch(() => {});
       }
     }
-
     // Audit log
     await pool.query(
-      `INSERT INTO audit_logs (transaction_id,user_name,action,field_changed,new_value)
-       VALUES ($1,$2,'CREATE','ทั้งหมด',$3)`,
+      `INSERT INTO audit_logs (transaction_id,user_name,action,field_changed,new_value) VALUES ($1,$2,'CREATE','ทั้งหมด',$3)`,
       [txn.id, created_by_name || 'Admin',
        `บันทึก${type === 'Income' ? 'รายรับ' : 'รายจ่าย'} ${category} ฿${Number(amount).toLocaleString()}`]
     ).catch(() => {});
-
+    // อัปเดต business summary
     if (type === 'Income') {
       await pool.query('UPDATE businesses SET income=income+$1,profit=profit+$1 WHERE id=$2', [amount, business_id]);
     } else {
       await pool.query('UPDATE businesses SET expense=expense+$1,profit=profit-$1 WHERE id=$2', [amount, business_id]);
       if (petty_cash) await pool.query('UPDATE businesses SET petty_cash=GREATEST(0,petty_cash-$1) WHERE id=$2', [amount, business_id]);
     }
-
     res.status(201).json(txn);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/transactions/:id', async (req, res) => {
+route('put', '/api/transactions/:id', async (req, res) => {
   const { category, amount, note, user_name } = req.body;
   try {
     const old = (await pool.query('SELECT * FROM transactions WHERE id=$1', [req.params.id])).rows[0];
     if (!old) return res.status(404).json({ error: 'ไม่พบรายการ' });
-
     const result = await pool.query(
       'UPDATE transactions SET category=COALESCE($1,category),amount=COALESCE($2,amount),note=COALESCE($3,note),is_edited=TRUE WHERE id=$4 RETURNING *',
       [category || old.category, Number(amount) || old.amount, note !== undefined ? note : old.note, req.params.id]
     );
-
+    // Audit log
     const changes = [];
     if (amount && Number(amount) !== Number(old.amount))
       changes.push(['จำนวนเงิน', `฿${Number(old.amount).toLocaleString()}`, `฿${Number(amount).toLocaleString()}`]);
@@ -196,37 +192,34 @@ app.put('/api/transactions/:id', async (req, res) => {
       changes.push(['หมวดหมู่', old.category, category]);
     if (note !== undefined && note !== old.note)
       changes.push(['หมายเหตุ', old.note || '-', note || '-']);
-
     for (const [field, ov, nv] of changes) {
       await pool.query(
-        `INSERT INTO audit_logs (transaction_id,user_name,action,field_changed,old_value,new_value)
-         VALUES ($1,$2,'EDIT',$3,$4,$5)`,
+        `INSERT INTO audit_logs (transaction_id,user_name,action,field_changed,old_value,new_value) VALUES ($1,$2,'EDIT',$3,$4,$5)`,
         [req.params.id, user_name || 'Admin', field, ov, nv]
       ).catch(() => {});
     }
-
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/transactions/:id', async (req, res) => {
-  const { user_name } = req.body || {};
+route('delete', '/api/transactions/:id', async (req, res) => {
   try {
     const old = await pool.query('SELECT * FROM transactions WHERE id=$1', [req.params.id]);
     if (old.rows.length > 0) {
       await pool.query(
-        `INSERT INTO audit_logs (transaction_id,user_name,action,field_changed,old_value)
-         VALUES ($1,$2,'DELETE','ทั้งหมด',$3)`,
-        [req.params.id, user_name || 'Admin', `ลบรายการ ${old.rows[0].category} ฿${old.rows[0].amount}`]
+        `INSERT INTO audit_logs (transaction_id,user_name,action,field_changed,old_value) VALUES ($1,$2,'DELETE','ทั้งหมด',$3)`,
+        [req.params.id, 'Admin', `ลบรายการ ${old.rows[0].category} ฿${old.rows[0].amount}`]
       ).catch(() => {});
+      // ลบ images ที่ผูกอยู่
+      await pool.query('DELETE FROM transaction_images WHERE transaction_id=$1', [req.params.id]).catch(() => {});
     }
     await pool.query('DELETE FROM transactions WHERE id=$1', [req.params.id]);
-    res.json({ message: 'Deleted' });
+    res.json({ message: 'ลบสำเร็จ' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── IMAGES ───
-app.get('/api/transactions/:id/images', async (req, res) => {
+route('get', '/api/transactions/:id/images', async (req, res) => {
   try {
     const r = await pool.query(
       'SELECT id,file_name,file_data,file_type,uploaded_by_name,created_at FROM transaction_images WHERE transaction_id=$1 ORDER BY created_at',
@@ -236,7 +229,7 @@ app.get('/api/transactions/:id/images', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/transactions/:id/images', async (req, res) => {
+route('post', '/api/transactions/:id/images', async (req, res) => {
   const { file_name, file_data, file_type, uploaded_by_name } = req.body;
   try {
     const r = await pool.query(
@@ -247,29 +240,26 @@ app.post('/api/transactions/:id/images', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/images/:id', async (req, res) => {
-  try { await pool.query('DELETE FROM transaction_images WHERE id=$1', [req.params.id]); res.json({ message: 'Deleted' }); }
+route('delete', '/api/images/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM transaction_images WHERE id=$1', [req.params.id]); res.json({ message: 'ลบสำเร็จ' }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── AUDIT LOGS ───
-app.get('/api/transactions/:id/audit', async (req, res) => {
+route('get', '/api/transactions/:id/audit', async (req, res) => {
   try {
-    const r = await pool.query(
-      'SELECT * FROM audit_logs WHERE transaction_id=$1 ORDER BY created_at ASC',
-      [req.params.id]
-    );
+    const r = await pool.query('SELECT * FROM audit_logs WHERE transaction_id=$1 ORDER BY created_at ASC', [req.params.id]);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── USERS ───
-app.get('/api/users', async (req, res) => {
+route('get', '/api/users', async (req, res) => {
   try { res.json((await pool.query('SELECT id,name,email,phone,role,business_ids,features,access_level,created_at FROM users ORDER BY id')).rows); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/users', async (req, res) => {
+route('post', '/api/users', async (req, res) => {
   const { name, email, phone, role, business_ids, features, access_level } = req.body;
   try {
     const r = await pool.query(
@@ -283,24 +273,25 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+route('put', '/api/users/:id', async (req, res) => {
   const { name, email, phone, role, business_ids, features, access_level } = req.body;
   try {
     const r = await pool.query(
       'UPDATE users SET name=$1,email=$2,phone=$3,role=$4,business_ids=$5,features=$6,access_level=$7 WHERE id=$8 RETURNING id,name,email,phone,role,business_ids,features,access_level',
       [name, email, phone, role, business_ids || [], features || [], access_level, req.params.id]
     );
+    if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/users/:id', async (req, res) => {
-  try { await pool.query('DELETE FROM users WHERE id=$1', [req.params.id]); res.json({ message: 'Deleted' }); }
+route('delete', '/api/users/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM users WHERE id=$1', [req.params.id]); res.json({ message: 'ลบสำเร็จ' }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── REPORTS ───
-app.get('/api/reports/pl', async (req, res) => {
+route('get', '/api/reports/pl', async (req, res) => {
   const { business_id, start, end } = req.query;
   try {
     let w = 'WHERE 1=1'; const p = []; let i = 1;
