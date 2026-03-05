@@ -1,4 +1,3 @@
-<< 'EOF'
 import app from '../server/index.js';
 
 export default async function handler(req, res) {
@@ -11,10 +10,3 @@ export default async function handler(req, res) {
     res.on('error', reject);
   });
 }
-EOF
-
-
-
-
-
-

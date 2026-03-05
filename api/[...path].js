@@ -1,4 +1,3 @@
-
 import app from '../server/index.js';
 
 export default async function handler(req, res) {
