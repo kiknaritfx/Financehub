@@ -106,3 +106,16 @@ ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_name VARCHAR(100);
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS field_changed VARCHAR(100);
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS old_value TEXT;
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS new_value TEXT;
+
+-- เพิ่ม columns ใหม่สำหรับ Business Management v2
+-- Fix type column size (เผื่อ database เก่ายังเป็น VARCHAR ขนาดเล็ก)
+ALTER TABLE businesses ALTER COLUMN type TYPE VARCHAR(100);
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tax_name VARCHAR(200);
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tax_id VARCHAR(13);
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tax_address TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS departments TEXT[] DEFAULT '{}';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS income_categories TEXT[] DEFAULT '{}';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS expense_categories TEXT[] DEFAULT '{}';
+
+-- แก้ icon column ให้รองรับ base64 image
+ALTER TABLE businesses ALTER COLUMN icon TYPE TEXT;
