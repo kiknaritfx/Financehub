@@ -29,8 +29,8 @@ runMigrations();
 
 // ─── Helper: register route with both /api/xxx and /xxx (Vercel fallback) ───
 function route(method, path, handler) {
+  // Register only /api/xxx - [...path].js restores /api prefix
   app[method](path, handler);
-  app[method](path.replace('/api/', '/'), handler);
 }
 
 // ─── HEALTH ───

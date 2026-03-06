@@ -1,9 +1,13 @@
 import app from '../server/index.js';
 
 export default async function handler(req, res) {
-  // Vercel catch-all รับ path แบบ /transactions/2 (ไม่มี /api prefix)
-  // Express register ไว้ทั้ง /api/xxx และ /xxx ผ่าน route() helper
-  // ไม่ต้องแก้ path เพราะ route() register /xxx ไว้แล้ว
+  // Vercel strips /api prefix when calling [...path].js
+  // e.g. GET /api/reports/pl → req.url = '/reports/pl'
+  // Express registers routes as /api/xxx, so restore prefix
+  if (!req.url.startsWith('/api')) {
+    req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
+  }
+
   return new Promise((resolve, reject) => {
     app(req, res);
     res.on('finish', resolve);
