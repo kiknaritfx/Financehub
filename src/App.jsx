@@ -2216,6 +2216,13 @@ const DOC_STATUS = {
 
 const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
 
+const formatDocDate = (dateStr) => {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
 // ── PDF Generator (html→print) ──
 const generatePDF = (doc, biz, settings) => {
   const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type) || DOC_TYPES[0];
@@ -2235,7 +2242,7 @@ const generatePDF = (doc, biz, settings) => {
   .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #e2e8f0;}
   .doc-title{font-size:26px;font-weight:700;color:#1e293b;}
   .doc-sub{font-size:13px;color:#64748b;margin-top:2px;}
-  .logo-box{width:56px;height:56px;background:#f1f5f9;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;}
+  .logo-box{width:64px;height:64px;background:#f1f5f9;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden;}.logo-box img{width:100%;height:100%;object-fit:contain;border-radius:12px;}
   .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
   .info-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;}
   .info-box h4{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
@@ -2258,7 +2265,7 @@ const generatePDF = (doc, biz, settings) => {
   .sig-name{font-size:12px;font-weight:600;color:#475569;}
   .sig-label{font-size:11px;color:#94a3b8;margin-top:2px;}
   .remarks{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;}
-  @media print{body{padding:0;}@page{margin:16mm;size:A4;}}
+  @media print{body{padding:0!important;}@page{margin:15mm;size:A4 portrait;}}
 </style>
 </head>
 <body>
@@ -2267,7 +2274,7 @@ const generatePDF = (doc, biz, settings) => {
     <div class="doc-title">${typeInfo.label}</div>
     <div class="doc-sub">${typeInfo.labelEn} (ต้นฉบับ / original)</div>
   </div>
-  <div class="logo-box">${biz?.icon || '🏪'}</div>
+  <div class="logo-box">${biz?.icon && biz.icon.startsWith('data:') ? `<img src="${biz.icon}" alt="logo"/>` : (biz?.icon || '🏪')}</div>
 </div>
 
 <div class="info-grid">
@@ -2282,8 +2289,8 @@ const generatePDF = (doc, biz, settings) => {
   <div class="info-box">
     <h4>รายละเอียดเอกสาร</h4>
     <div class="info-row"><span class="info-label">เลขที่</span><span class="info-val">${doc.doc_number}</span></div>
-    <div class="info-row"><span class="info-label">วันที่</span><span class="info-val">${doc.issue_date || '-'}</span></div>
-    ${doc.valid_date ? `<div class="info-row"><span class="info-label">ใช้ได้ถึง</span><span class="info-val">${doc.valid_date}</span></div>` : ''}
+    <div class="info-row"><span class="info-label">วันที่</span><span class="info-val">${formatDocDate(doc.issue_date)}</span></div>
+    ${doc.valid_date ? `<div class="info-row"><span class="info-label">ใช้ได้ถึง</span><span class="info-val">${formatDocDate(doc.valid_date)}</span></div>` : ''}
     ${doc.ref_doc ? `<div class="info-row"><span class="info-label">อ้างอิง</span><span class="info-val">${doc.ref_doc}</span></div>` : ''}
     <div class="info-row"><span class="info-label">ผู้ออก</span><span class="info-val">${issuerName}</span></div>
     <div class="info-row"><span class="info-label">เลขภาษีผู้ออก</span><span class="info-val">${issuerTaxId}</span></div>
@@ -2294,7 +2301,7 @@ const generatePDF = (doc, biz, settings) => {
   <thead>
     <tr>
       <th style="width:40px;text-align:center">รหัส</th>
-      <th style="text-align:left">คำอธิบาย</th>
+      <th style="text-align:left">รายการ</th>
       <th style="width:70px;text-align:center">จำนวน</th>
       <th style="width:60px;text-align:center">หน่วย</th>
       <th style="width:100px;text-align:right">ราคา/หน่วย</th>
@@ -2320,6 +2327,8 @@ ${doc.remarks ? `<div class="remarks"><strong>หมายเหตุ:</strong>
   <div class="totals-box">
     <div class="total-row"><span>รวมเป็นเงิน</span><span>฿${fmt(doc.subtotal)}</span></div>
     ${Number(doc.discount) > 0 ? `<div class="total-row"><span>ส่วนลด</span><span>-฿${fmt(doc.discount)}</span></div>` : ''}
+    ${Number(doc.vat) > 0 ? `<div class="total-row"><span>ภาษีมูลค่าเพิ่ม 7%</span><span>+฿${fmt(doc.vat)}</span></div>` : ''}
+    ${Number(doc.wht_amount) > 0 ? `<div class="total-row"><span>หัก ณ ที่จ่าย ${doc.wht_rate}%</span><span>-฿${fmt(doc.wht_amount)}</span></div>` : ''}
     <div class="total-final"><span>จำนวนเงินรวมทั้งสิ้น</span><span>฿${fmt(doc.total)}</span></div>
   </div>
 </div>
@@ -2333,7 +2342,7 @@ ${doc.remarks ? `<div class="remarks"><strong>หมายเหตุ:</strong>
   <div class="sig-box">
     ${sig ? `<img class="sig-img" src="${sig}" alt="signature"/>` : '<div class="sig-line"></div>'}
     <div class="sig-name">จัดเตรียมโดย / Prepared by</div>
-    <div class="sig-label">วันที่ / Date ${doc.issue_date || ''}</div>
+    <div class="sig-label">วันที่ / Date ${formatDocDate(doc.issue_date)}</div>
   </div>
   <div class="sig-box">
     <div class="sig-line"></div>
@@ -2367,13 +2376,18 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
     return [{ description: '', qty: 1, unit: 'หน่วย', unit_price: 0 }];
   });
   const [discount, setDiscount] = useState(editDoc?.discount || 0);
+  const [useVat, setUseVat] = useState(false);
+  const [whtRate, setWhtRate] = useState(0); // 0, 1, 1.5, 3, 5, 10, 15
   const [remarks, setRemarks] = useState(editDoc?.remarks || '');
   const [saving, setSaving] = useState(false);
   const [loadingNum, setLoadingNum] = useState(!editDoc);
 
   const typeInfo = DOC_TYPES.find(t => t.id === docType);
   const subtotal = items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.unit_price) || 0), 0);
-  const total = subtotal - (Number(discount) || 0);
+  const afterDiscount = subtotal - (Number(discount) || 0);
+  const vatAmt = useVat ? afterDiscount * 0.07 : 0;
+  const whtAmt = Number(whtRate) > 0 ? afterDiscount * (Number(whtRate) / 100) : 0;
+  const total = afterDiscount + vatAmt - whtAmt;
 
   useEffect(() => {
     if (!editDoc && bizId && docType) {
@@ -2568,7 +2582,7 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
             ))}
           </div>
           {/* Totals */}
-          <div className="mt-4 bg-white rounded-xl border border-slate-200 p-4 space-y-2">
+          <div className="mt-4 bg-white rounded-xl border border-slate-200 p-4 space-y-2.5">
             <div className="flex justify-between text-sm text-slate-600">
               <span>รวมเป็นเงิน</span><span className="font-bold">฿{fmt(subtotal)}</span>
             </div>
@@ -2580,8 +2594,42 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
                   className="w-28 px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-right" />
               </div>
             </div>
-            <div className="flex justify-between text-base font-black text-slate-800 pt-2 border-t border-slate-200">
-              <span>จำนวนเงินรวมทั้งสิ้น</span><span>฿{fmt(total)}</span>
+            {Number(discount) > 0 && (
+              <div className="flex justify-between text-sm text-slate-500">
+                <span>หลังหักส่วนลด</span><span>฿{fmt(afterDiscount)}</span>
+              </div>
+            )}
+            {/* VAT */}
+            <div className="flex items-center justify-between text-sm text-slate-600 pt-1 border-t border-slate-100">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={useVat} onChange={e => setUseVat(e.target.checked)}
+                  className="w-4 h-4 rounded accent-blue-600" />
+                <span className="font-medium">ภาษีมูลค่าเพิ่ม (VAT 7%)</span>
+              </label>
+              <span className={useVat ? 'font-bold text-blue-600' : 'text-slate-300'}>+฿{fmt(vatAmt)}</span>
+            </div>
+            {/* WHT */}
+            <div className="flex items-center justify-between text-sm text-slate-600">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <span className="font-medium">หัก ณ ที่จ่าย</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <select value={whtRate} onChange={e => setWhtRate(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                  <option value={0}>ไม่หัก</option>
+                  <option value={1}>1%</option>
+                  <option value={1.5}>1.5%</option>
+                  <option value={2}>2%</option>
+                  <option value={3}>3%</option>
+                  <option value={5}>5%</option>
+                  <option value={10}>10%</option>
+                  <option value={15}>15%</option>
+                </select>
+                <span className={Number(whtRate) > 0 ? 'font-bold text-rose-600 w-24 text-right' : 'text-slate-300 w-24 text-right'}>-฿{fmt(whtAmt)}</span>
+              </div>
+            </div>
+            <div className="flex justify-between text-base font-black text-slate-800 pt-2 border-t-2 border-slate-200">
+              <span>จำนวนเงินรวมทั้งสิ้น</span><span className="text-blue-700">฿{fmt(total)}</span>
             </div>
           </div>
         </section>
@@ -2802,23 +2850,33 @@ const Documents = ({ businesses, user, onSuccess }) => {
         </div>
       </div>
 
+      {/* แท็บประเภทเอกสาร */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        <button onClick={() => setFilterType('')}
+          className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold border transition-all ${filterType === '' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'}`}>
+          📁 ทั้งหมด
+        </button>
+        {DOC_TYPES.map(t => (
+          <button key={t.id} onClick={() => setFilterType(t.id)}
+            className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold border transition-all ${filterType === t.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'}`}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Filters */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+      <div className="bg-white rounded-2xl border border-slate-200 p-3 space-y-2">
         <div className="relative">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาเลขที่เอกสาร, ชื่อลูกค้า..."
-            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <select value={filterBiz} onChange={e => setFilterBiz(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+        <div className="grid grid-cols-2 gap-2">
+          <select value={filterBiz} onChange={e => setFilterBiz(e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
             <option value="">ทุกสาขา</option>
             {businesses.filter(b => b.status === 'Active').map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          <select value={filterType} onChange={e => setFilterType(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
-            <option value="">ทุกประเภท</option>
-            {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
             <option value="">ทุกสถานะ</option>
             {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
@@ -2852,8 +2910,9 @@ const Documents = ({ businesses, user, onSuccess }) => {
                       <span className="text-base font-black text-slate-800">฿{fmt(doc.total)}</span>
                     </div>
                   </div>
-                  <div className="text-sm text-slate-600 mb-3">
-                    <span className="font-medium">{doc.customer_name || '—'}</span>
+                  <div className="flex items-center gap-2 text-sm text-slate-700 mb-3">
+                    <span className="text-slate-400 text-xs">ลูกค้า</span>
+                    <span className="font-semibold">{doc.customer_name || '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 pt-3 border-t border-slate-100 flex-wrap">
                     {/* Status quick change */}
