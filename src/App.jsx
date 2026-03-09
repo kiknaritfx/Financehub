@@ -47,12 +47,17 @@ const generatePVPDF = (pv, biz, settings) => {
   const approverSig = settings?.approver_sig || '';
   const payerSig   = settings?.payer_sig   || '';
 
-  // ── ข้อมูลบริษัทครบ ──
+  // ── ข้อมูลบริษัท: ใช้ข้อมูลบริษัทและภาษีที่กรอกในตั้งค่า ──
   const bizLines = [];
-  if (biz?.name)    bizLines.push(`<div class="biz-name">${biz.name}</div>`);
-  if (biz?.type)    bizLines.push(`<div class="biz-sub">${biz.type}</div>`);
-  if (biz?.address) bizLines.push(`<div class="biz-line">${biz.address}</div>`);
+  // ชื่อนิติบุคคล/จดทะเบียน (tax_name) หรือชื่อร้าน (name)
+  const displayName = biz?.tax_name || biz?.name || '';
+  if (displayName) bizLines.push(`<div class="biz-name">${displayName}</div>`);
+  // ที่อยู่จดทะเบียน (tax_address) หรือที่อยู่ร้าน (address)
+  const displayAddr = biz?.tax_address || biz?.address || '';
+  if (displayAddr) bizLines.push(`<div class="biz-line">${displayAddr}</div>`);
+  // เลขภาษี
   if (biz?.tax_id)  bizLines.push(`<div class="biz-line">เลขประจำตัวผู้เสียภาษี <strong>${biz.tax_id}</strong></div>`);
+  // ข้อมูลติดต่อ
   if (biz?.phone)   bizLines.push(`<div class="biz-line">โทร ${biz.phone}</div>`);
   if (biz?.email)   bizLines.push(`<div class="biz-line">${biz.email}</div>`);
 
