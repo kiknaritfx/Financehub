@@ -2433,7 +2433,7 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
               <select value={bizId} onChange={e => setBizId(Number(e.target.value))} disabled={!!editDoc}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                 {businesses.filter(b => b.status === 'Active').map(b => (
-                  <option key={b.id} value={b.id}>{b.icon} {b.name}</option>
+                  <option key={b.id} value={b.id}>{b.icon && !b.icon.startsWith("data:") ? b.icon + " " : ""}{b.name}</option>
                 ))}
               </select>
             </div>
@@ -2669,7 +2669,7 @@ const DocumentSettings = ({ businesses, onClose }) => {
           <select value={bizId} onChange={e => setBizId(Number(e.target.value))}
             className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
             {businesses.filter(b => b.status === 'Active').map(b => (
-              <option key={b.id} value={b.id}>{b.icon} {b.name}</option>
+              <option key={b.id} value={b.id}>{b.icon && !b.icon.startsWith("data:") ? b.icon + " " : ""}{b.name}</option>
             ))}
           </select>
         </div>

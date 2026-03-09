@@ -15,14 +15,31 @@ app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
-// Auto-migration on startup
+// Auto-migration on startup - รัน statement ทีละอัน เพื่อไม่ให้ error อันเดียว block ทั้งหมด
 async function runMigrations() {
   try {
     const sql = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
-    await pool.query(sql);
-    console.log('✅ DB ok');
+    const statements = sql
+      .split(/;\s*\n/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+
+    let ok = 0, failed = 0;
+    for (const stmt of statements) {
+      try {
+        await pool.query(stmt);
+        ok++;
+      } catch (err) {
+        const msg = err.message || '';
+        if (!msg.includes('already exists')) {
+          console.error('⚠️ Migration stmt failed:', msg.substring(0, 120));
+        }
+        failed++;
+      }
+    }
+    console.log(`✅ DB migration: ${ok} ok, ${failed} skipped`);
   } catch (err) {
-    console.error('⚠️ Migration:', err.message);
+    console.error('⚠️ Migration error:', err.message);
   }
 }
 runMigrations();

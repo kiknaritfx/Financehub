@@ -84,10 +84,10 @@ LEFT JOIN users u ON t.created_by = u.id;
 -- (Demo data removed - ไม่ใส่ข้อมูลตัวอย่างอัตโนมัติแล้ว)
 
 -- Default Admin User
-INSERT INTO users (name, email, phone, role, access_level, features) VALUES
-  ('Admin FinanceHub', 'admin@financehub.com', '080-000-0000', 'เจ้าของธุรกิจ', 'Full Access', 
+INSERT INTO users (name, username, email, phone, role, access_level, features) VALUES
+  ('Admin FinanceHub', 'admin', 'admin@financehub.com', '080-000-0000', 'เจ้าของธุรกิจ', 'Full Access', 
    ARRAY['Dashboard','Income','Expense','Transactions','Edit','Delete','Reports','Businesses','Users'])
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (username) DO NOTHING;
 
 -- ตาราง transaction_images (NEW - รูปภาพหลักฐาน)
 CREATE TABLE IF NOT EXISTS transaction_images (
