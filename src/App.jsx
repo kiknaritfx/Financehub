@@ -746,7 +746,8 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   const [category, setCategory] = useState('ต้นทุนขาย/วัตถุดิบ (COGS)');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [pettyCash, setPettyCash] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState('petty_cash'); // 'petty_cash' | 'transfer'
+  const [receiptType, setReceiptType] = useState('cash_bill'); // 'cash_bill' | 'tax_short' | 'tax_full'
   const [images, setImages] = useState([]); // { name, data, type, preview }
   const [loading, setLoading] = useState(false);
 
@@ -782,7 +783,9 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
     try {
       await transactionAPI.create({
         business_id: selectedBizId, type: 'Expense', category,
-        amount: Number(amount), date: datetime, petty_cash: pettyCash, note,
+        amount: Number(amount), date: datetime,
+        petty_cash: paymentMethod === 'petty_cash',
+        note: note + (receiptType !== 'cash_bill' ? ` [${receiptType === 'tax_short' ? 'ใบกำกับภาษีอย่างย่อ' : 'ใบกำกับภาษีฉบับเต็ม'}]` : ''),
         images: images.map(img => ({ name: img.name, data: img.data, type: img.type })),
         created_by_name: user?.name || 'Admin'
       });
@@ -869,11 +872,54 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
             </div>
           </div>
 
-          <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
-            <input type="checkbox" id="pettycash" checked={pettyCash} onChange={e => setPettyCash(e.target.checked)} className="mt-1 w-5 h-5 text-amber-600 rounded cursor-pointer" />
-            <div>
-              <label htmlFor="pettycash" className="font-bold text-amber-900 cursor-pointer block">จ่ายด้วยเงินสดย่อย (Petty Cash)</label>
-              <p className="text-sm text-amber-700 mt-0.5">ยอดนี้จะถูกหักออกจากวงเงินสดย่อยของสาขา</p>
+          {/* ช่องทางการจ่ายเงิน */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">ช่องทางการจ่ายเงิน</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setPaymentMethod('petty_cash')}
+                className={`flex flex-col items-start gap-1.5 p-4 rounded-xl border-2 transition-all text-left ${paymentMethod === 'petty_cash' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white hover:border-amber-300'}`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">💵</span>
+                  <span className={`font-bold text-sm ${paymentMethod === 'petty_cash' ? 'text-amber-800' : 'text-slate-700'}`}>เงินสดย่อย</span>
+                  {paymentMethod === 'petty_cash' && <Check size={15} className="text-amber-600 ml-auto" />}
+                </div>
+                <p className={`text-xs leading-tight ${paymentMethod === 'petty_cash' ? 'text-amber-700' : 'text-slate-400'}`}>หักจากวงเงินสดย่อยของสาขา</p>
+              </button>
+              <button type="button" onClick={() => setPaymentMethod('transfer')}
+                className={`flex flex-col items-start gap-1.5 p-4 rounded-xl border-2 transition-all text-left ${paymentMethod === 'transfer' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🏦</span>
+                  <span className={`font-bold text-sm ${paymentMethod === 'transfer' ? 'text-blue-800' : 'text-slate-700'}`}>โอนเงิน/อื่นๆ</span>
+                  {paymentMethod === 'transfer' && <Check size={15} className="text-blue-600 ml-auto" />}
+                </div>
+                <p className={`text-xs leading-tight ${paymentMethod === 'transfer' ? 'text-blue-700' : 'text-slate-400'}`}>ไม่หักจากเงินสดย่อย</p>
+              </button>
+            </div>
+            {paymentMethod === 'petty_cash' && selectedBiz && (
+              <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-700">
+                <Wallet size={13} />
+                <span>คงเหลือ: <strong>฿{fmt(selectedBiz.petty_cash)}</strong> / {fmt(selectedBiz.petty_cash_max)}</span>
+                {(selectedBiz.petty_cash / selectedBiz.petty_cash_max) < 0.3 && <span className="text-rose-600 font-bold">⚠️ ต่ำกว่า 30%</span>}
+              </div>
+            )}
+          </div>
+
+          {/* ประเภทใบเสร็จที่ได้รับ */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">ใบเสร็จที่ได้รับ</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'cash_bill', label: 'บิลเงินสด', icon: '🧾', desc: 'ใบเสร็จทั่วไป' },
+                { id: 'tax_short', label: 'ใบกำกับภาษีอย่างย่อ', icon: '📋', desc: 'ย่อ / ม้วน' },
+                { id: 'tax_full', label: 'ใบกำกับภาษีเต็มรูป', icon: '📄', desc: 'ฉบับเต็ม' },
+              ].map(rt => (
+                <button key={rt.id} type="button" onClick={() => setReceiptType(rt.id)}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${receiptType === rt.id ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'}`}>
+                  <span className="text-xl">{rt.icon}</span>
+                  <span className="text-xs font-bold leading-tight text-center">{rt.label}</span>
+                  <span className={`text-xs leading-tight ${receiptType === rt.id ? 'text-slate-300' : 'text-slate-400'}`}>{rt.desc}</span>
+                </button>
+              ))}
             </div>
           </div>
 
