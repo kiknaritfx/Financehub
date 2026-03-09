@@ -36,17 +36,17 @@ const STANDARD_CATEGORIES = {
   expense: ['ต้นทุนขาย/วัตถุดิบ (COGS)', 'เงินเดือนและสวัสดิการพนักงาน', 'ค่าเช่าสถานที่', 'ค่าสาธารณูปโภค (น้ำ/ไฟ/เน็ต)', 'ค่าวัสดุสิ้นเปลือง', 'ค่าโฆษณาและส่งเสริมการขาย', 'ค่าซ่อมบำรุง']
 };
 const EMOJIS = ['☕', '🍜', '🥐', '🍕', '🍔', '🍰', '🍱', '🍛', '🏪', '🏬', '🛒', '📦', '💼', '🏢', '🏭', '🏦', '💇', '💅', '🏥', '🔧', '🎨', '📚'];
-const FEATURE_LIST = [
 
 // ── Timezone helper: คืน datetime string แบบ +07:00 (ไทย) ──
 const nowTH = () => {
   const now = new Date();
-  const offset = 7 * 60; // นาที
+  const offset = 7 * 60;
   const local = new Date(now.getTime() + (offset - now.getTimezoneOffset()) * 60000);
   return local.toISOString().replace('Z', '');
 };
 const todayTH = () => nowTH().split('T')[0];
 
+const FEATURE_LIST = [
   { id: 'Dashboard', label: 'ดู Dashboard' },
   { id: 'Income', label: 'บันทึกรายรับ' },
   { id: 'Expense', label: 'บันทึกรายจ่าย' },
