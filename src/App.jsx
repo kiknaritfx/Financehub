@@ -831,7 +831,7 @@ const Dashboard = ({ setCurrentView, businesses = [] }) => {
 const IncomeEntry = ({ businesses, onSuccess }) => {
   const [selectedBizId, setSelectedBizId] = useState('');
   const [date, setDate] = useState(todayTH());
-  const [category, setCategory] = useState('รายได้จากการขาย (Sales)');
+  const [category, setCategory] = useState('');
   const [cash, setCash] = useState('');
   const [transfer, setTransfer] = useState('');
   const [card, setCard] = useState('');
@@ -839,6 +839,20 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const total = (Number(cash) || 0) + (Number(transfer) || 0) + (Number(card) || 0);
   const fmt = (n) => new Intl.NumberFormat('th-TH').format(n);
+
+  const selectedBiz = businesses.find(b => String(b.id) === String(selectedBizId));
+  const incomeCats = (Array.isArray(selectedBiz?.income_categories) && selectedBiz.income_categories.length > 0)
+    ? selectedBiz.income_categories
+    : STANDARD_CATEGORIES.income;
+
+  // reset category เมื่อเปลี่ยน biz
+  const handleSelectBiz = (id) => {
+    setSelectedBizId(id);
+    const biz = businesses.find(b => String(b.id) === String(id));
+    const cats = (Array.isArray(biz?.income_categories) && biz.income_categories.length > 0)
+      ? biz.income_categories : STANDARD_CATEGORIES.income;
+    setCategory(cats[0] || '');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -871,7 +885,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
           <h3 className="font-semibold text-slate-800 mb-4">1. เลือกร้านค้า</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {businesses.filter(b=>b.status==='Active').map(biz => (
-              <div key={biz.id} onClick={() => setSelectedBizId(biz.id)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedBizId == biz.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300'}`}>
+              <div key={biz.id} onClick={() => handleSelectBiz(biz.id)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedBizId == biz.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <BizIcon biz={biz} size="sm" />
@@ -894,7 +908,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">หมวดหมู่</label>
               <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none appearance-none">
-                {STANDARD_CATEGORIES.income.map(c => <option key={c}>{c}</option>)}
+                {incomeCats.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
           </div>
@@ -938,7 +952,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   const [datepart, setDatepart] = useState(() => nowTH().slice(0, 10));
   const [timepart, setTimepart] = useState(() => nowTH().slice(11, 16));
   const datetime = `${datepart}T${timepart}`;
-  const [category, setCategory] = useState('ต้นทุนขาย/วัตถุดิบ (COGS)');
+  const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('petty_cash'); // 'petty_cash' | 'transfer'
@@ -947,6 +961,19 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   const [loading, setLoading] = useState(false);
 
   const selectedBiz = businesses.find(b => String(b.id) === String(selectedBizId));
+  const expenseCats = (Array.isArray(selectedBiz?.expense_categories) && selectedBiz.expense_categories.length > 0)
+    ? selectedBiz.expense_categories
+    : STANDARD_CATEGORIES.expense;
+
+  // reset category เมื่อเปลี่ยน biz
+  const handleSelectBiz = (id) => {
+    setSelectedBizId(id);
+    const biz = businesses.find(b => String(b.id) === String(id));
+    const cats = (Array.isArray(biz?.expense_categories) && biz.expense_categories.length > 0)
+      ? biz.expense_categories : STANDARD_CATEGORIES.expense;
+    setCategory(cats[0] || '');
+  };
+
   const fmt = (n) => new Intl.NumberFormat('th-TH').format(n || 0);
 
   const handleImagePick = (e) => {
@@ -1006,7 +1033,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
           <h3 className="font-semibold text-slate-800 mb-4">เลือกสาขา</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {businesses.filter(b => b.status === 'Active').map(biz => (
-              <div key={biz.id} onClick={() => setSelectedBizId(biz.id)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedBizId == biz.id ? 'border-rose-500 bg-rose-50' : 'border-slate-200 hover:border-rose-300'}`}>
+              <div key={biz.id} onClick={() => handleSelectBiz(biz.id)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedBizId == biz.id ? 'border-rose-500 bg-rose-50' : 'border-slate-200 hover:border-rose-300'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2"><BizIcon biz={biz} size="sm" /><span className="font-bold text-slate-700">{biz.name}</span></div>
                   {selectedBizId == biz.id && <Check size={18} className="text-rose-600" />}
@@ -1053,7 +1080,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">หมวดหมู่รายจ่าย</label>
               <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none appearance-none">
-                {STANDARD_CATEGORIES.expense.map(c => <option key={c}>{c}</option>)}
+                {expenseCats.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
           </div>
