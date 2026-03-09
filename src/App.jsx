@@ -929,74 +929,53 @@ const Transactions = ({ businesses, user }) => {
 
       {loading ? <div className="flex justify-center py-12"><Spinner /></div> : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[750px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-600">
-                  <th className="p-4">วันที่/เวลา</th>
-                  <th className="p-4">สาขา</th>
-                  <th className="p-4">ประเภท / หมวดหมู่</th>
-                  <th className="p-4 text-right">จำนวนเงิน (฿)</th>
-                  <th className="p-4 text-center">หลักฐาน</th>
-                  <th className="p-4">ผู้บันทึก</th>
-                  <th className="p-4 text-center">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan="7" className="p-8 text-center text-slate-400">ไม่พบข้อมูล</td></tr>
-                ) : filtered.map(tx => (
-                  <tr key={tx.id} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="p-4 text-sm whitespace-nowrap">
-                      <div className="font-bold text-slate-800">{(tx.created_at || tx.date || '').split('T')[0]}</div>
-                      <div className="text-slate-400 text-xs">{(tx.created_at || tx.date || '').split('T')[1]?.slice(0,5)}</div>
-                    </td>
-                    <td className="p-4 text-sm font-medium text-slate-700">{tx.business_name || '—'}</td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge type={tx.type === 'Income' ? 'income' : 'expense'}>{tx.type === 'Income' ? 'รายรับ' : 'รายจ่าย'}</Badge>
-                        <span className="text-sm text-slate-700">{tx.category}</span>
-                        {tx.is_edited && <Badge type="audit">✏️ Edited</Badge>}
-                      </div>
-                    </td>
-                    <td className={`p-4 text-right text-base font-black ${tx.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {tx.type === 'Income' ? '+' : '-'}{fmt(tx.amount)}
-                    </td>
-                    <td className="p-4 text-center">
-                      <button onClick={() => openImages(tx)}
-                        className={`relative inline-flex items-center justify-center w-9 h-9 rounded-xl border transition-all ${tx.image_count > 0 ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
-                        <ImageIcon size={16} />
-                        {tx.image_count > 0 && (
-                          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                            {tx.image_count}
-                          </span>
-                        )}
-                      </button>
-                    </td>
-                    <td className="p-4 text-sm text-slate-600">
-                      <div>{tx.created_by_name || '—'}</div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button onClick={() => openAudit(tx)} title="ประวัติการแก้ไข"
-                          className="w-8 h-8 flex items-center justify-center text-purple-500 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-100">
-                          <History size={14} />
-                        </button>
-                        <button onClick={() => openEdit(tx)}
-                          className="px-2.5 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center gap-1 border border-blue-100">
-                          <Edit2 size={13} /> แก้ไข
-                        </button>
-                        <button onClick={() => setDeleteModal(tx)}
-                          className="px-2.5 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1 border border-rose-100">
-                          <Trash2 size={13} /> ลบ
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-slate-400">ไม่พบข้อมูล</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {filtered.map(tx => (
+                <div key={tx.id} className="p-4 hover:bg-blue-50/30 transition-colors">
+                  {/* Row 1: วันที่ + จำนวนเงิน */}
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <div className="font-bold text-slate-800 text-sm">{(tx.created_at || tx.date || '').split('T')[0]}</div>
+                      <div className="text-slate-400 text-xs">{(tx.created_at || tx.date || '').split('T')[1]?.slice(0,5)} · {tx.business_name || '—'}</div>
+                    </div>
+                    <div className={`text-base font-black ${tx.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {tx.type === 'Income' ? '+' : '-'}฿{fmt(tx.amount)}
+                    </div>
+                  </div>
+                  {/* Row 2: Badge + category + edited */}
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
+                    <Badge type={tx.type === 'Income' ? 'income' : 'expense'}>{tx.type === 'Income' ? 'รายรับ' : 'รายจ่าย'}</Badge>
+                    <span className="text-sm text-slate-700">{tx.category}</span>
+                    {tx.is_edited && <Badge type="audit">✏️ Edited</Badge>}
+                    {tx.created_by_name && <span className="text-xs text-slate-400">โดย {tx.created_by_name}</span>}
+                  </div>
+                  {/* Row 3: action buttons */}
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => openImages(tx)}
+                      className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${tx.image_count > 0 ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                      <ImageIcon size={13} />
+                      {tx.image_count > 0 ? `${tx.image_count} รูป` : 'รูป'}
+                    </button>
+                    <button onClick={() => openAudit(tx)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg text-xs font-bold border border-purple-100">
+                      <History size={13} /> ประวัติ
+                    </button>
+                    <button onClick={() => openEdit(tx)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg text-xs font-bold border border-blue-100">
+                      <Edit2 size={13} /> แก้ไข
+                    </button>
+                    <button onClick={() => setDeleteModal(tx)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg text-xs font-bold border border-rose-100">
+                      <Trash2 size={13} /> ลบ
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="p-4 border-t border-slate-200 text-sm text-slate-500 bg-slate-50">
             แสดง {filtered.length} จาก {txns.length} รายการ
           </div>
@@ -1732,17 +1711,17 @@ const Reports = ({ businesses }) => {
               <div className="px-5 py-3 bg-emerald-50 border-b border-emerald-100">
                 <h3 className="font-bold text-emerald-800">รายรับแยกตามหมวดหมู่</h3>
               </div>
-              <table className="w-full">
-                <tbody className="divide-y divide-slate-100">
-                  {data.income_items.map((item, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                      <td className="px-5 py-3 text-sm text-slate-700">{item.category || '(ไม่ระบุ)'}</td>
-                      <td className="px-5 py-3 text-right font-bold text-emerald-600">฿{fmt(item.total)}</td>
-                      <td className="px-5 py-3 text-right text-xs text-slate-400">{data.income > 0 ? Math.round(item.total / data.income * 100) : 0}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="divide-y divide-slate-100">
+                {data.income_items.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50">
+                    <span className="text-sm text-slate-700">{item.category || '(ไม่ระบุ)'}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-emerald-600">฿{fmt(item.total)}</span>
+                      <span className="text-xs text-slate-400 w-8 text-right">{data.income > 0 ? Math.round(item.total / data.income * 100) : 0}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1752,17 +1731,17 @@ const Reports = ({ businesses }) => {
               <div className="px-5 py-3 bg-rose-50 border-b border-rose-100">
                 <h3 className="font-bold text-rose-800">รายจ่ายแยกตามหมวดหมู่</h3>
               </div>
-              <table className="w-full">
-                <tbody className="divide-y divide-slate-100">
-                  {data.expense_items.map((item, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                      <td className="px-5 py-3 text-sm text-slate-700">{item.category || '(ไม่ระบุ)'}</td>
-                      <td className="px-5 py-3 text-right font-bold text-rose-600">฿{fmt(item.total)}</td>
-                      <td className="px-5 py-3 text-right text-xs text-slate-400">{data.expense > 0 ? Math.round(item.total / data.expense * 100) : 0}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="divide-y divide-slate-100">
+                {data.expense_items.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50">
+                    <span className="text-sm text-slate-700">{item.category || '(ไม่ระบุ)'}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-rose-600">฿{fmt(item.total)}</span>
+                      <span className="text-xs text-slate-400 w-8 text-right">{data.expense > 0 ? Math.round(item.total / data.expense * 100) : 0}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
