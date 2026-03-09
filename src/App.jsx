@@ -263,8 +263,8 @@ const LoginPage = ({ onLogin }) => {
         {error && <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-sm font-medium flex items-center gap-2"><AlertCircle size={16} />{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">อีเมล</label>
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 bg-slate-50" />
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">ชื่อผู้ใช้ (Username)</label>
+            <input type="text" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 bg-slate-50" placeholder="กรอก Username" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">รหัสผ่าน</label>
@@ -1774,14 +1774,20 @@ const UserManagement = ({ businesses, onSuccess }) => {
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [name, setName] = useState(''); const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState(''); const [role, setRole] = useState('พนักงาน');
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState('พนักงาน');
   const [selectedBizs, setSelectedBizs] = useState([]);
   const [selectedFeatures, setSelectedFeatures] = useState([]);
   const [accessLevel, setAccessLevel] = useState('Own Data');
   const [saving, setSaving] = useState(false);
-  const [inviteModal, setInviteModal] = useState(null); // { name, email, link }
-  const [invitingId, setInvitingId] = useState(null);
+  // Change-password modal
+  const [cpModal, setCpModal] = useState(null);
+  const [cpCur, setCpCur] = useState(''); const [cpNew, setCpNew] = useState(''); const [cpConfirm, setCpConfirm] = useState('');
+  const [cpSaving, setCpSaving] = useState(false);
 
   useEffect(() => {
     userAPI.getAll()
@@ -1793,15 +1799,14 @@ const UserManagement = ({ businesses, onSuccess }) => {
   const ALL_FEATURES = FEATURE_LIST.map(f => f.id);
 
   const openAdd = () => {
-    setEditingId(null); setName(''); setEmail(''); setPhone(''); setRole('พนักงาน');
-    setSelectedBizs([]); 
-    setSelectedFeatures(ALL_FEATURES); // default เลือกทั้งหมด
-    setAccessLevel('Own Data'); 
+    setEditingId(null); setName(''); setUsername(''); setPassword(''); setPhone(''); setRole('พนักงาน');
+    setSelectedBizs([]); setSelectedFeatures(ALL_FEATURES); setAccessLevel('Own Data');
     setIsDrawerOpen(true);
   };
   const openEdit = (u) => {
-    setEditingId(u.id); setName(u.name); setEmail(u.email); setPhone(u.phone || ''); setRole(u.role || 'พนักงาน');
-    setSelectedBizs(u.business_ids || []); setSelectedFeatures(u.features || []); setAccessLevel(u.access_level || 'Own Data');
+    setEditingId(u.id); setName(u.name||''); setUsername(u.username||''); setPassword('');
+    setPhone(u.phone||''); setRole(u.role||'พนักงาน');
+    setSelectedBizs(u.business_ids||[]); setSelectedFeatures(u.features||[]); setAccessLevel(u.access_level||'Own Data');
     setIsDrawerOpen(true);
   };
   const handleDelete = async (id, n) => {
@@ -1809,34 +1814,23 @@ const UserManagement = ({ businesses, onSuccess }) => {
     await userAPI.delete(id).catch(() => {});
     setUsers(prev => prev.filter(u => u.id !== id));
   };
-
-  const handleInvite = async (user) => {
-    setInvitingId(user.id);
-    try {
-      const res = await inviteAPI.sendInvite(user.id);
-      if (res.invite_link) {
-        setInviteModal({ name: user.name, email: user.email, link: res.invite_link });
-        setUsers(prev => prev.map(u => u.id === user.id ? { ...u, invite_status: 'pending' } : u));
-      } else {
-        alert('เกิดข้อผิดพลาด: ' + (res.error || 'ไม่สามารถสร้างลิงค์ได้'));
-      }
-    } catch (err) {
-      alert('เกิดข้อผิดพลาด: ' + err.message);
-    } finally {
-      setInvitingId(null);
-    }
-  };
   const toggleBiz = (id) => setSelectedBizs(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const toggleFeat = (id) => setSelectedFeatures(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const handleSave = async (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
+    if (!username.trim()) return alert('กรุณากรอก Username');
+    if (!editingId && !password) return alert('กรุณากรอก Password สำหรับผู้ใช้ใหม่');
     setSaving(true);
-    const data = { name, email, phone, role, business_ids: selectedBizs, features: selectedFeatures, access_level: accessLevel };
+    const data = {
+      name: name||username, username, phone, role,
+      business_ids: selectedBizs, features: selectedFeatures, access_level: accessLevel,
+      ...(password ? { password } : {})
+    };
     try {
       if (editingId) {
-        await userAPI.update(editingId, data);
-        setUsers(prev => prev.map(u => u.id === editingId ? { ...u, ...data } : u));
+        const updated = await userAPI.update(editingId, data);
+        setUsers(prev => prev.map(u => u.id === editingId ? { ...u, ...updated } : u));
         setIsDrawerOpen(false);
         onSuccess('อัปเดตผู้ใช้สำเร็จ ✅');
       } else {
@@ -1844,18 +1838,25 @@ const UserManagement = ({ businesses, onSuccess }) => {
         setUsers(prev => [...prev, created]);
         setIsDrawerOpen(false);
         onSuccess('เพิ่มผู้ใช้สำเร็จ ✅');
-        // Auto-send invite link และแสดง modal
-        const res = await inviteAPI.sendInvite(created.id).catch(() => null);
-        if (res?.invite_link) {
-          setInviteModal({ name: created.name, email: created.email, link: res.invite_link });
-          setUsers(prev => prev.map(u => u.id === created.id ? { ...u, invite_status: 'pending' } : u));
-        }
       }
-    } catch (err) {
-      alert('เกิดข้อผิดพลาด: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { alert('เกิดข้อผิดพลาด: ' + err.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleChangePw = async () => {
+    if (cpNew !== cpConfirm) return alert('รหัสผ่านใหม่ไม่ตรงกัน');
+    if (cpNew.length < 4) return alert('รหัสผ่านต้องมีอย่างน้อย 4 ตัว');
+    setCpSaving(true);
+    try {
+      const res = await fetch(`/api/users/${cpModal.id}/change-password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: cpCur, new_password: cpNew })
+      });
+      const data = await res.json();
+      if (res.ok) { setCpModal(null); setCpCur(''); setCpNew(''); setCpConfirm(''); onSuccess('เปลี่ยนรหัสผ่านสำเร็จ ✅'); }
+      else alert('เกิดข้อผิดพลาด: ' + data.error);
+    } catch (err) { alert(err.message); }
+    finally { setCpSaving(false); }
   };
 
   if (loading) return <div className="flex justify-center py-12"><Spinner /></div>;
@@ -1863,34 +1864,42 @@ const UserManagement = ({ businesses, onSuccess }) => {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
 
-      {/* Invite Modal */}
-      {inviteModal && (
+      {/* ── Change Password Modal ── */}
+      {cpModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Check size={32} className="text-green-600" />
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-black text-slate-800">เปลี่ยนรหัสผ่าน</h3>
+                <p className="text-slate-500 text-sm mt-0.5">{cpModal.name} · @{cpModal.username}</p>
               </div>
-              <h3 className="text-xl font-black text-slate-800">ลิงค์พร้อมแล้ว!</h3>
-              <p className="text-slate-500 text-sm mt-1">ส่งลิงค์นี้ให้ <strong>{inviteModal.name}</strong> ตั้งรหัสผ่าน</p>
+              <button onClick={() => setCpModal(null)} className="p-2 rounded-full hover:bg-slate-100 text-slate-400"><X size={20} /></button>
             </div>
-            <div className="bg-slate-50 rounded-xl p-4 mb-4">
-              <p className="text-xs text-slate-500 mb-1">อีเมล</p>
-              <p className="font-bold text-slate-700">{inviteModal.email}</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">รหัสผ่านปัจจุบัน</label>
+                <input type="password" value={cpCur} onChange={e => setCpCur(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="รหัสผ่านเดิม" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">รหัสผ่านใหม่</label>
+                <input type="password" value={cpNew} onChange={e => setCpNew(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="อย่างน้อย 4 ตัวอักษร" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">ยืนยันรหัสผ่านใหม่</label>
+                <input type="password" value={cpConfirm} onChange={e => setCpConfirm(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="พิมพ์ซ้ำอีกครั้ง" />
+              </div>
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-              <p className="text-xs text-blue-600 font-bold mb-2">🔗 ลิงค์ตั้งรหัสผ่าน (หมดอายุใน 7 วัน)</p>
-              <p className="text-xs text-blue-800 break-all font-mono">{inviteModal.link}</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { navigator.clipboard.writeText(inviteModal.link); onSuccess('คัดลอกลิงค์แล้ว ✅'); }}
-                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 flex items-center justify-center gap-2"
-              >
-                📋 คัดลอกลิงค์
-              </button>
-              <button onClick={() => setInviteModal(null)} className="px-5 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200">
-                ปิด
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setCpModal(null)} className="flex-1 py-3 border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50">ยกเลิก</button>
+              <button onClick={handleChangePw} disabled={cpSaving}
+                className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                {cpSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} บันทึก
               </button>
             </div>
           </div>
@@ -1919,30 +1928,24 @@ const UserManagement = ({ businesses, onSuccess }) => {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="font-black text-slate-800 text-lg">{user.name}</h3>
-                  <p className="text-sm text-slate-500 mt-0.5">{user.email}</p>
-                  <span className={`inline-flex items-center gap-1 text-xs font-bold mt-1.5 px-2 py-0.5 rounded-full ${
-                    user.invite_status === 'active' ? 'bg-green-100 text-green-700' :
-                    user.invite_status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                    'bg-slate-100 text-slate-500'
-                  }`}>
-                    {user.invite_status === 'active' ? '✅ ตั้งรหัสผ่านแล้ว' :
-                     user.invite_status === 'pending' ? '⏳ รอตั้งรหัสผ่าน' : '⭕ ยังไม่ได้ส่งลิงค์'}
+                  <p className="text-sm font-mono text-slate-500 mt-0.5">@{user.username}</p>
+                  <span className="inline-flex items-center gap-1 text-xs font-bold mt-1.5 px-2.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                    ✅ พร้อมใช้งาน
                   </span>
                 </div>
                 <Badge type={user.role === 'เจ้าของธุรกิจ' ? 'owner' : user.role === 'ผู้จัดการ' ? 'manager' : 'staff'}>{user.role}</Badge>
               </div>
               <div className="flex gap-2 pt-3 border-t border-slate-100">
-                <button onClick={() => openEdit(user)} className="flex-1 py-2.5 bg-blue-50 text-blue-600 text-sm font-bold rounded-xl hover:bg-blue-100 flex items-center justify-center gap-2 border border-blue-100">
+                <button onClick={() => openEdit(user)}
+                  className="flex-1 py-2.5 bg-blue-50 text-blue-600 text-sm font-bold rounded-xl hover:bg-blue-100 flex items-center justify-center gap-2 border border-blue-100">
                   <Settings size={16} /> จัดการสิทธิ์
                 </button>
-                <button
-                  onClick={() => handleInvite(user)}
-                  disabled={invitingId === user.id}
-                  className="flex-1 py-2.5 bg-green-50 text-green-700 text-sm font-bold rounded-xl hover:bg-green-100 flex items-center justify-center gap-2 border border-green-200 disabled:opacity-50"
-                >
-                  {invitingId === user.id ? <Loader2 size={16} className="animate-spin" /> : '🔗'} ส่งลิงค์
+                <button onClick={() => { setCpModal(user); setCpCur(''); setCpNew(''); setCpConfirm(''); }}
+                  className="flex-1 py-2.5 bg-amber-50 text-amber-700 text-sm font-bold rounded-xl hover:bg-amber-100 flex items-center justify-center gap-2 border border-amber-200">
+                  🔑 เปลี่ยนรหัส
                 </button>
-                <button onClick={() => handleDelete(user.id, user.name)} className="px-4 bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-xl transition-colors">
+                <button onClick={() => handleDelete(user.id, user.name)}
+                  className="px-4 bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 rounded-xl transition-colors">
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -1951,62 +1954,135 @@ const UserManagement = ({ businesses, onSuccess }) => {
         </div>
       )}
 
-      <Drawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title={editingId ? 'ตั้งค่าสิทธิ์' : 'เพิ่มพนักงานใหม่'}>
-        <form onSubmit={handleSave} className="p-6 space-y-6 pb-24">
-          <div className="space-y-4">
-            {[['ชื่อ-นามสกุล *', name, setName, 'text', 'กรอกชื่อ-นามสกุล'], ['อีเมล *', email, setEmail, 'email', 'example@email.com'], ['เบอร์โทร', phone, setPhone, 'tel', '08X-XXX-XXXX']].map(([label, val, setter, type, ph]) => (
-              <div key={label}>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">{label}</label>
-                <input type={type} required={label.includes('*')} value={val} onChange={e => setter(e.target.value)} placeholder={ph} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
+      {/* ── Drawer: เพิ่ม/แก้ไขผู้ใช้ ── */}
+      <Drawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}
+        title={editingId ? `แก้ไข: ${name||username}` : 'เพิ่มพนักงานใหม่'}
+        description={editingId ? 'แก้ไขข้อมูล สิทธิ์ และ Password' : 'กรอก Username + Password เพื่อสร้าง Account'}>
+        <form onSubmit={handleSave} className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-7">
+
+            {/* ── Section 1: Account ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                <h3 className="font-bold text-slate-800">ข้อมูล Account</h3>
               </div>
-            ))}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">ตำแหน่ง</label>
-              <select value={role} onChange={e => setRole(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base">
-                <option>เจ้าของธุรกิจ</option><option>ผู้จัดการ</option><option>พนักงาน</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-3">ธุรกิจที่เข้าถึงได้ <span className="text-slate-400 font-normal">(เฉพาะที่เปิดใช้งาน)</span></label>
-            <div className="space-y-2">
-              {businesses.filter(biz => biz.status === 'Active').map(biz => (
-                <label key={biz.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedBizs.includes(biz.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                  <input type="checkbox" checked={selectedBizs.includes(biz.id)} onChange={() => toggleBiz(biz.id)} className="w-5 h-5 text-blue-600 rounded" />
-                  <BizIcon biz={biz} size="sm" />
-                  <span className="text-sm font-bold text-slate-700">ร้าน{biz.name}</span>
-                </label>
-              ))}
-              {businesses.filter(biz => biz.status === 'Active').length === 0 && (
-                <p className="text-sm text-slate-400 text-center py-3">ไม่มีธุรกิจที่เปิดใช้งาน</p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <label className="text-sm font-bold text-slate-700">สิทธิ์การใช้งาน</label>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setSelectedFeatures(ALL_FEATURES)} className="text-xs font-bold text-blue-600 hover:underline">เลือกทั้งหมด</button>
-                <span className="text-slate-300">|</span>
-                <button type="button" onClick={() => setSelectedFeatures([])} className="text-xs font-bold text-slate-500 hover:underline">ล้างทั้งหมด</button>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">ชื่อ-นามสกุล</label>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="เช่น สมชาย ใจดี (ไม่บังคับ)" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Username <span className="text-rose-500">*</span></label>
+                    <input type="text" required value={username}
+                      onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                      placeholder="เช่น somchai01" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      Password {editingId
+                        ? <span className="text-slate-400 font-normal text-xs">(เว้นว่าง = ไม่เปลี่ยน)</span>
+                        : <span className="text-rose-500">*</span>}
+                    </label>
+                    <div className="relative">
+                      <input type={showPw ? 'text' : 'password'}
+                        value={password} onChange={e => setPassword(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none pr-10"
+                        placeholder={editingId ? "เว้นว่าง = ไม่เปลี่ยน" : "ตั้งรหัสผ่าน"} />
+                      <button type="button" onClick={() => setShowPw(!showPw)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        {showPw ? <EyeOff size={18}/> : <Eye size={18}/>}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">เบอร์โทร</label>
+                  <input type="text" value={phone} onChange={e => setPhone(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="08X-XXX-XXXX" />
+                </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              {FEATURE_LIST.map(f => (
-                <label key={f.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${selectedFeatures.includes(f.id) ? 'border-amber-400 bg-amber-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                  <input type="checkbox" checked={selectedFeatures.includes(f.id)} onChange={() => toggleFeat(f.id)} className="w-4 h-4 text-amber-600 rounded" />
-                  <span className="text-sm font-medium text-slate-700">{f.label}</span>
-                </label>
-              ))}
-            </div>
+            </section>
+
+            {/* ── Section 2: บทบาท ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                <h3 className="font-bold text-slate-800">บทบาทและระดับการเข้าถึง</h3>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {['เจ้าของธุรกิจ','ผู้จัดการ','พนักงาน'].map(r => (
+                  <button key={r} type="button" onClick={() => setRole(r)}
+                    className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${role===r ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[['Own Data','👤 เห็นข้อมูลตัวเอง'],['All Data','👥 เห็นข้อมูลทั้งหมด']].map(([lvl, label]) => (
+                  <button key={lvl} type="button" onClick={() => setAccessLevel(lvl)}
+                    className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${accessLevel===lvl ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* ── Section 3: สาขา ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                <h3 className="font-bold text-slate-800">สาขาที่เข้าถึงได้</h3>
+              </div>
+              <div className="space-y-2">
+                {businesses.filter(b => b.status === 'Active').map(biz => (
+                  <label key={biz.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedBizs.includes(biz.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <input type="checkbox" checked={selectedBizs.includes(biz.id)} onChange={() => toggleBiz(biz.id)} className="w-5 h-5 text-blue-600 rounded" />
+                    <BizIcon biz={biz} size="sm" />
+                    <span className="text-sm font-bold text-slate-700">{biz.name}</span>
+                  </label>
+                ))}
+                {businesses.filter(b => b.status === 'Active').length === 0 && (
+                  <p className="text-sm text-slate-400 text-center py-4">ยังไม่มีสาขาที่เปิดใช้งาน</p>
+                )}
+              </div>
+            </section>
+
+            {/* ── Section 4: สิทธิ์เมนู ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span>
+                <h3 className="font-bold text-slate-800">เมนูที่เข้าถึงได้</h3>
+                <button type="button" onClick={() => setSelectedFeatures(selectedFeatures.length === ALL_FEATURES.length ? [] : ALL_FEATURES)}
+                  className="ml-auto text-xs text-blue-600 font-bold hover:underline">
+                  {selectedFeatures.length === ALL_FEATURES.length ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {FEATURE_LIST.map(f => (
+                  <label key={f.id} className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${selectedFeatures.includes(f.id) ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <input type="checkbox" checked={selectedFeatures.includes(f.id)} onChange={() => toggleFeat(f.id)} className="w-4 h-4 text-emerald-600 rounded" />
+                    <span className="text-sm">{f.icon} {f.label}</span>
+                  </label>
+                ))}
+              </div>
+            </section>
           </div>
 
-          <div className="fixed bottom-0 right-0 w-full max-w-xl bg-white border-t p-4 flex gap-3 z-20">
-            <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100">ยกเลิก</button>
-            <button type="submit" disabled={saving} className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50 flex items-center justify-center gap-2">
-              {saving ? <><Spinner />บันทึก...</> : 'บันทึก'}
+          {/* ── Sticky footer ── */}
+          <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4 flex gap-3">
+            <button type="button" onClick={() => setIsDrawerOpen(false)}
+              className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100">
+              ยกเลิก
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+              {saving ? <><Loader2 size={16} className="animate-spin" /> กำลังบันทึก...</> : <><Check size={16} /> บันทึก</>}
             </button>
           </div>
         </form>

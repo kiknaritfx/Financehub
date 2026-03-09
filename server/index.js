@@ -41,15 +41,17 @@ route('get', '/api/health', async (req, res) => {
 
 // ─── LOGIN ───
 route('post', '/api/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body; // email field = username หรือ email
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
-    if (!result.rows.length) return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+    const result = await pool.query(
+      'SELECT * FROM users WHERE username=$1 OR email=$1', [email]
+    );
+    if (!result.rows.length) return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
     const user = result.rows[0];
     const ok = (email === 'admin@financehub.com' && password === 'admin1234')
       || (user.password_hash && user.password_hash === password);
-    if (!ok) return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
-    const { password_hash, invite_token, ...safe } = user;
+    if (!ok) return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+    const { password_hash, ...safe } = user;
     res.json({ success: true, user: safe });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -271,33 +273,59 @@ route('get', '/api/transactions/:id/audit', async (req, res) => {
 
 // ─── USERS ───
 route('get', '/api/users', async (req, res) => {
-  try { res.json((await pool.query('SELECT id,name,email,phone,role,business_ids,features,access_level,created_at FROM users ORDER BY id')).rows); }
+  try { res.json((await pool.query('SELECT id,name,username,email,phone,role,business_ids,features,access_level,created_at FROM users ORDER BY id')).rows); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// เปลี่ยนรหัสผ่านด้วยตัวเอง (self-service)
+route('post', '/api/users/:id/change-password', async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!new_password || new_password.length < 4) return res.status(400).json({ error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร' });
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE id=$1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+    const user = result.rows[0];
+    if (user.password_hash !== current_password) return res.status(401).json({ error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' });
+    await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [new_password, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 route('post', '/api/users', async (req, res) => {
-  const { name, email, phone, role, business_ids, features, access_level } = req.body;
+  const { name, username, password, phone, role, business_ids, features, access_level } = req.body;
+  if (!username) return res.status(400).json({ error: 'กรุณากรอก Username' });
+  if (!password) return res.status(400).json({ error: 'กรุณากรอก Password' });
+  const toIntArr = (v) => Array.isArray(v) ? v.map(Number) : [];
+  const toStrArr = (v) => Array.isArray(v) ? v : [];
   try {
     const r = await pool.query(
-      'INSERT INTO users (name,email,phone,role,business_ids,features,access_level) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id,name,email,phone,role,business_ids,features,access_level',
-      [name, email, phone, role || 'พนักงาน', business_ids || [], features || [], access_level || 'Own Data']
+      `INSERT INTO users (name,username,password_hash,phone,role,business_ids,features,access_level)
+       VALUES ($1,$2,$3,$4,$5,$6::INTEGER[],$7::TEXT[],$8)
+       RETURNING id,name,username,phone,role,business_ids,features,access_level`,
+      [name||username, username, password, phone||null,
+       role||'พนักงาน', toIntArr(business_ids), toStrArr(features), access_level||'Own Data']
     );
     res.status(201).json(r.rows[0]);
   } catch (err) {
-    if (err.code === '23505') return res.status(400).json({ error: 'อีเมลนี้ถูกใช้งานแล้ว' });
+    if (err.code === '23505') return res.status(400).json({ error: 'Username นี้ถูกใช้งานแล้ว' });
     res.status(500).json({ error: err.message });
   }
 });
 
 route('put', '/api/users/:id', async (req, res) => {
-  const { name, email, phone, role, business_ids, features, access_level } = req.body;
+  const { name, username, password, phone, role, business_ids, features, access_level } = req.body;
   try {
     const toIntArr = (v) => Array.isArray(v) ? v.map(Number) : [];
     const toStrArr = (v) => Array.isArray(v) ? v : [];
-    const r = await pool.query(
-      'UPDATE users SET name=$1,email=$2,phone=$3,role=$4,business_ids=$5::INTEGER[],features=$6::TEXT[],access_level=$7 WHERE id=$8 RETURNING id,name,email,phone,role,business_ids,features,access_level',
-      [name, email, phone, role, toIntArr(business_ids), toStrArr(features), access_level, req.params.id]
-    );
+    let q, params;
+    if (password) {
+      q = 'UPDATE users SET name=$1,username=$2,password_hash=$3,phone=$4,role=$5,business_ids=$6::INTEGER[],features=$7::TEXT[],access_level=$8 WHERE id=$9 RETURNING id,name,username,phone,role,business_ids,features,access_level';
+      params = [name||username, username, password, phone||null, role, toIntArr(business_ids), toStrArr(features), access_level, req.params.id];
+    } else {
+      q = 'UPDATE users SET name=$1,username=$2,phone=$3,role=$4,business_ids=$5::INTEGER[],features=$6::TEXT[],access_level=$7 WHERE id=$8 RETURNING id,name,username,phone,role,business_ids,features,access_level';
+      params = [name||username, username, phone||null, role, toIntArr(business_ids), toStrArr(features), access_level, req.params.id];
+    }
+    const r = await pool.query(q, params);
     if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
     res.json(r.rows[0]);
   } catch (err) {

@@ -22,24 +22,23 @@ CREATE TABLE IF NOT EXISTS businesses (
 -- ตาราง users (ผู้ใช้งาน)
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  email VARCHAR(200) UNIQUE NOT NULL,
+  name VARCHAR(100),
+  username VARCHAR(100) UNIQUE NOT NULL,
+  email VARCHAR(200),
   phone VARCHAR(20),
   role VARCHAR(50) DEFAULT 'พนักงาน',
   business_ids INTEGER[] DEFAULT '{}',
   features TEXT[] DEFAULT '{}',
   access_level VARCHAR(50) DEFAULT 'Own Data',
   password_hash VARCHAR(255),
-  invite_token VARCHAR(100),
-  invite_expires_at TIMESTAMP,
-  invite_status VARCHAR(20) DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- เพิ่ม columns สำหรับ invite (ถ้ายังไม่มี)
-ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token VARCHAR(100);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_expires_at TIMESTAMP;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_status VARCHAR(20) DEFAULT 'pending';
+-- Migration: เพิ่ม username column สำหรับ DB เดิม
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100);
+ALTER TABLE users DROP COLUMN IF EXISTS invite_token;
+ALTER TABLE users DROP COLUMN IF EXISTS invite_expires_at;
+ALTER TABLE users DROP COLUMN IF EXISTS invite_status;
 
 -- ตาราง transactions (รายรับ-รายจ่าย)
 CREATE TABLE IF NOT EXISTS transactions (
