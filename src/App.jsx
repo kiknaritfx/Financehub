@@ -493,7 +493,7 @@ const LoginPage = ({ onLogin }) => {
 };
 
 // ─── DASHBOARD ───
-const Dashboard = ({ setCurrentView }) => {
+const Dashboard = ({ setCurrentView, businesses = [] }) => {
   const [bizData, setBizData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('เดือนนี้');
@@ -559,30 +559,26 @@ const Dashboard = ({ setCurrentView }) => {
     };
   };
 
-  const loadData = async (p) => {
+  const loadData = async (p, bizList) => {
     setLoading(true);
     try {
       const { start, end } = getDateRange(p);
-      // โหลดทุกธุรกิจที่ Active
-      const allBiz = await businessAPI.getAll();
-      const activeBiz = (Array.isArray(allBiz) ? allBiz : []).filter(b => b.status === 'Active');
+      // ใช้ businesses prop ที่โหลดไว้แล้ว — ไม่ต้อง fetch ซ้ำ
+      const activeBiz = (Array.isArray(bizList) && bizList.length > 0 ? bizList : [])
+        .filter(b => b.status === 'Active');
 
-      // โหลดข้อมูล P&L ตามช่วงวันที่ สำหรับแต่ละธุรกิจ
+      if (activeBiz.length === 0) { setBizData([]); setLoading(false); return; }
+
+      // โหลด P&L ทุกสาขาพร้อมกัน (parallel)
       const results = await Promise.all(activeBiz.map(async (biz) => {
         try {
           const pl = await reportAPI.getPL({ business_id: biz.id, start, end });
-          return {
-            ...biz,
-            income: Number(pl.income) || 0,
-            expense: Number(pl.expense) || 0,
-            profit: Number(pl.profit) || 0,
-          };
+          return { ...biz, income: Number(pl.income)||0, expense: Number(pl.expense)||0, profit: Number(pl.profit)||0 };
         } catch {
           return { ...biz, income: 0, expense: 0, profit: 0 };
         }
       }));
 
-      // แสดงเฉพาะร้านที่มีข้อมูลในช่วงนั้น
       const withData = results.filter(b => b.income > 0 || b.expense > 0);
       setBizData(withData.length > 0 ? withData : results);
     } catch {
@@ -592,9 +588,14 @@ const Dashboard = ({ setCurrentView }) => {
     }
   };
 
-  useEffect(() => { loadData(period); }, [period, customStart, customEnd]);
+  useEffect(() => { loadData(period, businesses); }, [period, customStart, customEnd, businesses]);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3">
+      <Spinner />
+      <p className="text-sm text-slate-400">กำลังโหลดข้อมูล...</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -3454,6 +3455,9 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
   const [search, setSearch] = useState('');
   const [previewPv, setPreviewPv] = useState(null);
   const [editPv, setEditPv] = useState(null);
+  // รูปภาพ: { [tx_id]: [{id, file_data, file_name}] }
+  const [pvImages, setPvImages] = useState({});
+  const [loadingImages, setLoadingImages] = useState({});
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
 
   const filtered = pvs.filter(p =>
@@ -3461,6 +3465,25 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
       || (p.pay_to || '').includes(search)
       || (p.description || '').includes(search)
   );
+
+  // โหลดรูปภาพสำหรับ tx_id ที่ยังไม่เคยโหลด
+  const loadImages = async (txId) => {
+    if (!txId || pvImages[txId] !== undefined) return;
+    setLoadingImages(prev => ({ ...prev, [txId]: true }));
+    try {
+      const imgs = await imageAPI.getAll(txId);
+      setPvImages(prev => ({ ...prev, [txId]: Array.isArray(imgs) ? imgs : [] }));
+    } catch {
+      setPvImages(prev => ({ ...prev, [txId]: [] }));
+    } finally {
+      setLoadingImages(prev => ({ ...prev, [txId]: false }));
+    }
+  };
+
+  // โหลดรูปของทุก PV ที่มี tx_id เมื่อ list เปลี่ยน
+  useEffect(() => {
+    pvs.forEach(pv => { if (pv.tx_id) loadImages(pv.tx_id); });
+  }, [pvs]);
 
   const handleDelete = (id) => {
     if (!confirm('ลบใบสำคัญจ่ายนี้หรือไม่?')) return;
@@ -3514,41 +3537,61 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">วันที่</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">จ่ายให้แก่</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">รายการ</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">สาขา</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">รูปแนบ</th>
                   <th className="text-right px-4 py-3 font-semibold text-slate-600">จำนวนเงิน</th>
                   <th className="text-center px-4 py-3 font-semibold text-slate-600">การดำเนินการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map(pv => (
-                  <tr key={pv.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono font-bold text-amber-700">{pv.pv_no}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{pv.issue_date}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800">{pv.pay_to}</td>
-                    <td className="px-4 py-3 text-slate-600">{pv.description}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{pv.business_name}</td>
-                    <td className="px-4 py-3 text-right font-black text-slate-800">฿{fmt(pv.amount)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => setPreviewPv(pv)} title="ดูรายละเอียด"
-                          className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
-                          <Eye size={15} />
-                        </button>
-                        <button onClick={() => setEditPv(pv)} title="แก้ไข"
-                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50">
-                          <Edit2 size={15} />
-                        </button>
-                        <button onClick={() => handleReprint(pv)} title="พิมพ์ PDF"
-                          className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50">
-                          <Printer size={15} />
-                        </button>
-                        <button onClick={() => handleDelete(pv.id)} title="ลบ"
-                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                  {(() => {
+                    const imgs = pvImages[pv.tx_id] || [];
+                    const isLoadingImg = loadingImages[pv.tx_id];
+                    return (
+                      <tr key={pv.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-mono font-bold text-amber-700">{pv.pv_no}</td>
+                        <td className="px-4 py-3 text-slate-500 text-xs">{pv.issue_date}</td>
+                        <td className="px-4 py-3 font-medium text-slate-800">{pv.pay_to}</td>
+                        <td className="px-4 py-3 text-slate-600">{pv.description}</td>
+                        <td className="px-4 py-3">
+                          {isLoadingImg ? (
+                            <Loader2 size={14} className="animate-spin text-slate-300" />
+                          ) : imgs.length > 0 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {imgs.map(img => (
+                                <img key={img.id} src={img.file_data} alt={img.file_name}
+                                  className="w-9 h-9 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-110 transition-transform"
+                                  onClick={() => window.open(img.file_data, '_blank')} />
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-slate-800">฿{fmt(pv.amount)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button onClick={() => setPreviewPv(pv)} title="ดูรายละเอียด"
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+                              <Eye size={15} />
+                            </button>
+                            <button onClick={() => setEditPv(pv)} title="แก้ไข"
+                              className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50">
+                              <Edit2 size={15} />
+                            </button>
+                            <button onClick={() => handleReprint(pv)} title="พิมพ์ PDF"
+                              className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50">
+                              <Printer size={15} />
+                            </button>
+                            <button onClick={() => handleDelete(pv.id)} title="ลบ"
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50">
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })()}
                 ))}
               </tbody>
             </table>
@@ -3566,7 +3609,21 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
                   <div className="text-base font-black text-slate-800">฿{fmt(pv.amount)}</div>
                 </div>
                 <div className="text-sm text-slate-700 mb-1"><span className="text-slate-400 text-xs">จ่ายให้แก่ </span>{pv.pay_to}</div>
-                <div className="text-xs text-slate-500 mb-3">{pv.description}</div>
+                <div className="text-xs text-slate-500 mb-2">{pv.description}</div>
+                {/* รูปภาพแนบ */}
+                {(() => {
+                  const imgs = pvImages[pv.tx_id] || [];
+                  return imgs.length > 0 ? (
+                    <div className="flex gap-1.5 flex-wrap mb-2 p-2 bg-slate-50 rounded-xl">
+                      <span className="text-xs text-slate-400 w-full mb-1 flex items-center gap-1"><ImageIcon size={11} /> รูปแนบ ({imgs.length})</span>
+                      {imgs.map(img => (
+                        <img key={img.id} src={img.file_data} alt={img.file_name}
+                          className="w-14 h-14 object-cover rounded-lg border border-slate-200 cursor-pointer"
+                          onClick={() => window.open(img.file_data, '_blank')} />
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
                 <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
                   <button onClick={() => setPreviewPv(pv)}
                     className="flex flex-col items-center gap-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold border border-slate-200 hover:bg-slate-100">
@@ -3637,6 +3694,34 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
                   <span className="font-black text-xl">฿{fmt(previewPv.amount)}</span>
                 </div>
                 {previewPv.note && <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800"><span className="font-bold">หมายเหตุ: </span>{previewPv.note}</div>}
+                {/* รูปภาพแนบ */}
+                {(() => {
+                  const imgs = pvImages[previewPv.tx_id] || [];
+                  const isLoadingImg = loadingImages[previewPv.tx_id];
+                  return (
+                    <div>
+                      <div className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5">
+                        <ImageIcon size={13} /> รูปภาพหลักฐาน
+                        {isLoadingImg && <Loader2 size={12} className="animate-spin text-slate-400" />}
+                      </div>
+                      {imgs.length === 0 && !isLoadingImg ? (
+                        <div className="text-xs text-slate-300 bg-slate-50 rounded-xl p-3 text-center">ไม่มีรูปภาพแนบ</div>
+                      ) : (
+                        <div className="flex gap-2 flex-wrap">
+                          {imgs.map((img, idx) => (
+                            <div key={img.id} className="relative group cursor-pointer" onClick={() => window.open(img.file_data, '_blank')}>
+                              <img src={img.file_data} alt={img.file_name}
+                                className="w-20 h-20 object-cover rounded-xl border-2 border-slate-200 hover:border-amber-400 transition-all" />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-xl transition-all flex items-center justify-center">
+                                <Eye size={16} className="text-white opacity-0 group-hover:opacity-100 transition-all" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="text-xs text-slate-400">สาขา: {previewPv.business_name} · บันทึกโดย: {previewPv.created_by}</div>
               </div>
               <div className="p-4 border-t border-slate-200 flex gap-2">
@@ -4210,7 +4295,7 @@ export default function App() {
 
   const renderView = () => {
     switch (currentView) {
-      case 'dashboard': return <Dashboard setCurrentView={setCurrentView} />;
+      case 'dashboard': return <Dashboard setCurrentView={setCurrentView} businesses={businesses} />;
       case 'income': return <IncomeEntry businesses={businesses} onSuccess={showToast} />;
       case 'expense': return <ExpenseEntry businesses={businesses} user={user} onSuccess={showToast} />;
       case 'transactions': return <Transactions businesses={businesses} user={user} />;
