@@ -9,7 +9,7 @@ import {
   ChevronRight, ArrowUp, ArrowDown, Banknote, Landmark,
   CreditCard, CornerDownRight, FolderTree, Tags, BarChart2,
   Phone, Shield, Lightbulb, CheckSquare, Lock, User, CalendarDays,
-  Loader2
+  Loader2, RotateCw
 } from 'lucide-react';
 import { businessAPI, transactionAPI, userAPI, reportAPI, auditAPI, imageAPI, documentAPI } from './api.js';
 
@@ -303,6 +303,8 @@ const Dashboard = ({ setCurrentView }) => {
   const [bizData, setBizData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('เดือนนี้');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [selectedBiz, setSelectedBiz] = useState(null);
   const [pettyCashModal, setPettyCashModal] = useState(null); // biz object
   const [pcMax, setPcMax] = useState('');
@@ -348,6 +350,14 @@ const Dashboard = ({ setCurrentView }) => {
       const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
       return { start: mon.toISOString().split('T')[0], end: now.toISOString().split('T')[0] };
     }
+    if (p === 'เดือนที่แล้ว') {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { start: first.toISOString().split('T')[0], end: last.toISOString().split('T')[0] };
+    }
+    if (p === 'กำหนดเอง') {
+      return { start: customStart || now.toISOString().split('T')[0], end: customEnd || now.toISOString().split('T')[0] };
+    }
     // เดือนนี้
     return {
       start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
@@ -388,7 +398,7 @@ const Dashboard = ({ setCurrentView }) => {
     }
   };
 
-  useEffect(() => { loadData(period); }, [period]);
+  useEffect(() => { loadData(period); }, [period, customStart, customEnd]);
 
   if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
 
@@ -477,10 +487,22 @@ const Dashboard = ({ setCurrentView }) => {
           <h2 className="text-2xl font-bold text-slate-800">ภาพรวมธุรกิจ (Dashboard)</h2>
           <p className="text-slate-500 text-sm mt-1">สรุปข้อมูลการเงินทุกสาขา</p>
         </div>
-        <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-200">
-          {['วันนี้', 'สัปดาห์นี้', 'เดือนนี้'].map(p => (
-            <button key={p} onClick={() => setPeriod(p)} className={`px-4 py-1.5 text-sm rounded-md transition-colors ${period === p ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>{p}</button>
-          ))}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-200 flex-wrap gap-0.5">
+            {['วันนี้', 'สัปดาห์นี้', 'เดือนนี้', 'เดือนที่แล้ว', 'กำหนดเอง'].map(p => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 text-xs rounded-lg transition-colors font-bold ${period === p ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>{p}</button>
+            ))}
+          </div>
+          {period === 'กำหนดเอง' && (
+            <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200 px-3 py-2 shadow-sm">
+              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                className="text-xs border-0 outline-none text-slate-700 font-medium" />
+              <span className="text-slate-400 text-xs font-bold">—</span>
+              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                className="text-xs border-0 outline-none text-slate-700 font-medium" />
+            </div>
+          )}
         </div>
       </div>
 
@@ -488,8 +510,8 @@ const Dashboard = ({ setCurrentView }) => {
         {bizData.map((biz) => (
           <div key={biz.id} className="bg-white rounded-[24px] shadow-sm border border-slate-100 hover:shadow-lg transition-all p-5 flex flex-col">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center border border-slate-100 shrink-0 text-3xl">
-                {biz.logo_type === 'image' && biz.icon ? <img src={biz.icon} className="w-full h-full object-cover" alt={biz.name} /> : (biz.icon || '🏪')}
+              <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center border border-slate-100 shrink-0 text-3xl overflow-hidden">
+                {biz.logo_type === 'image' && biz.icon ? <img src={biz.icon} className="w-full h-full object-cover rounded-2xl" alt={biz.name} /> : (biz.icon || '🏪')}
               </div>
               <div>
                 <h3 className="font-bold text-slate-800 text-xl">{biz.name}</h3>
@@ -718,7 +740,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
 // ─── EXPENSE ENTRY ───
 const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   const [selectedBizId, setSelectedBizId] = useState('');
-  const [datetime, setDatetime] = useState(nowTH().slice(0, 16));
+  const [datetime, setDatetime] = useState(() => nowTH().slice(0, 16));
   const [category, setCategory] = useState('ต้นทุนขาย/วัตถุดิบ (COGS)');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -1018,7 +1040,7 @@ const Transactions = ({ businesses, user }) => {
           <p className="text-slate-500 text-sm mt-1">ประวัติการรับ-จ่ายทั้งหมด</p>
         </div>
         <button onClick={load} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center gap-2">
-          <Download size={16} /> Refresh
+          <RotateCw size={16} /> โหลดใหม่
         </button>
       </div>
 
@@ -1794,10 +1816,13 @@ const Reports = ({ businesses }) => {
             ))}
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
-          <span className="text-slate-500 font-bold">ถึง</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
+        <div className="flex items-center gap-2 bg-slate-50 rounded-xl border border-slate-200 px-4 py-2.5">
+          <CalendarDays size={16} className="text-slate-400 flex-shrink-0" />
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+            className="bg-transparent outline-none text-sm text-slate-700 font-medium" />
+          <span className="text-slate-400 font-bold px-1">—</span>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+            className="bg-transparent outline-none text-sm text-slate-700 font-medium" />
         </div>
       </div>
 
