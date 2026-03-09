@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, TrendingUp, TrendingDown, List, Building2,
   FileText, Users, Menu, X, Eye, EyeOff, Upload, Plus, Search,
-  FileEdit, FilePlus, Download, Send, Receipt, ClipboardList, Stamp,
+  FileEdit, FilePlus, Send, Receipt, ClipboardList, Stamp,
   MoreVertical, AlertCircle, Image as ImageIcon, History,
   Check, Settings, LogOut, ChevronDown, Calendar, Wallet,
   Download, Printer, Trash2, Smile, ImagePlus, UploadCloud, Edit2, Power,
