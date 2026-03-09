@@ -2335,14 +2335,9 @@ ${doc.remarks ? `<div class="remarks"><strong>หมายเหตุ:</strong>
 
 <div class="footer">
   <div class="sig-box">
-    <div class="sig-line"></div>
+    ${sig ? `<img class="sig-img" src="${sig}" alt="signature"/>` : '<div class="sig-line"></div>'}
     <div class="sig-name">อนุมัติโดย / Approved by</div>
     <div class="sig-label">วันที่ / Date ................................</div>
-  </div>
-  <div class="sig-box">
-    ${sig ? `<img class="sig-img" src="${sig}" alt="signature"/>` : '<div class="sig-line"></div>'}
-    <div class="sig-name">จัดเตรียมโดย / Prepared by</div>
-    <div class="sig-label">วันที่ / Date ${formatDocDate(doc.issue_date)}</div>
   </div>
   <div class="sig-box">
     <div class="sig-line"></div>
