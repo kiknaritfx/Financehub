@@ -40,10 +40,10 @@ const EMOJIS = ['☕', '🍜', '🥐', '🍕', '🍔', '🍰', '🍱', '🍛', '
 
 // ── Timezone helper: คืน datetime string แบบ +07:00 (ไทย) ──
 const nowTH = () => {
+  // ใช้ local datetime ของเครื่องตรงๆ เพื่อให้เวลาตรงกับที่ผู้ใช้เห็น
   const now = new Date();
-  const offset = 7 * 60;
-  const local = new Date(now.getTime() + (offset - now.getTimezoneOffset()) * 60000);
-  return local.toISOString().replace('Z', '');
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 };
 const todayTH = () => nowTH().split('T')[0];
 
@@ -740,7 +740,9 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
 // ─── EXPENSE ENTRY ───
 const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   const [selectedBizId, setSelectedBizId] = useState('');
-  const [datetime, setDatetime] = useState(() => nowTH().slice(0, 16));
+  const [datepart, setDatepart] = useState(() => nowTH().slice(0, 10));
+  const [timepart, setTimepart] = useState(() => nowTH().slice(11, 16));
+  const datetime = `${datepart}T${timepart}`;
   const [category, setCategory] = useState('ต้นทุนขาย/วัตถุดิบ (COGS)');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -843,7 +845,12 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">วันที่/เวลา</label>
-              <input type="datetime-local" value={datetime} onChange={e => setDatetime(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none" />
+              <div className="flex gap-2">
+                <input type="date" value={datepart} onChange={e => setDatepart(e.target.value)}
+                  className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm" />
+                <input type="time" value={timepart} onChange={e => setTimepart(e.target.value)}
+                  className="w-28 px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm text-center" />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">หมวดหมู่รายจ่าย</label>
@@ -935,6 +942,9 @@ const Transactions = ({ businesses, user }) => {
   const [search, setSearch] = useState('');
   const [filterBiz, setFilterBiz] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterPeriod, setFilterPeriod] = useState('');
+  const [filterCustomStart, setFilterCustomStart] = useState('');
+  const [filterCustomEnd, setFilterCustomEnd] = useState('');
   const [deleteModal, setDeleteModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [editCategory, setEditCategory] = useState('');
@@ -1022,11 +1032,35 @@ const Transactions = ({ businesses, user }) => {
     a.click();
   };
 
+  const getTxnDateRange = () => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    if (filterPeriod === 'วันนี้') return { start: today, end: today };
+    if (filterPeriod === 'สัปดาห์นี้') {
+      const day = now.getDay();
+      const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      return { start: mon.toISOString().split('T')[0], end: today };
+    }
+    if (filterPeriod === 'เดือนนี้') {
+      return { start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0], end: today };
+    }
+    if (filterPeriod === 'กำหนดเอง') return { start: filterCustomStart, end: filterCustomEnd };
+    return null;
+  };
+
   const filtered = txns.filter(t => {
     const s = search.toLowerCase();
-    return (!s || (t.category || '').toLowerCase().includes(s) || (t.created_by_name || '').includes(s) || (t.txn_id || '').toLowerCase().includes(s))
-      && (!filterBiz || String(t.business_id) === filterBiz)
-      && (!filterType || t.type === filterType);
+    const matchSearch = !s || (t.category || '').toLowerCase().includes(s) || (t.created_by_name || '').includes(s) || (t.txn_id || '').toLowerCase().includes(s);
+    const matchBiz = !filterBiz || String(t.business_id) === filterBiz;
+    const matchType = !filterType || t.type === filterType;
+    const dateRange = getTxnDateRange();
+    let matchDate = true;
+    if (dateRange && (dateRange.start || dateRange.end)) {
+      const txDate = (t.date || t.created_at || '').slice(0, 10);
+      if (dateRange.start && txDate < dateRange.start) matchDate = false;
+      if (dateRange.end && txDate > dateRange.end) matchDate = false;
+    }
+    return matchSearch && matchBiz && matchType && matchDate;
   });
 
   const auditIcon = (a) => a === 'EDIT' ? '✏️' : a === 'DELETE' ? '🗑' : '➕';
@@ -1045,6 +1079,25 @@ const Transactions = ({ businesses, user }) => {
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-3">
+        {/* แถบช่วงเวลา */}
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+          {['', 'วันนี้', 'สัปดาห์นี้', 'เดือนนี้', 'กำหนดเอง'].map(p => (
+            <button key={p} onClick={() => setFilterPeriod(p)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${filterPeriod === p ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400'}`}>
+              {p || 'ทั้งหมด'}
+            </button>
+          ))}
+        </div>
+        {filterPeriod === 'กำหนดเอง' && (
+          <div className="flex items-center gap-2 bg-slate-50 rounded-xl border border-slate-200 px-3 py-2">
+            <CalendarDays size={15} className="text-slate-400 flex-shrink-0" />
+            <input type="date" value={filterCustomStart} onChange={e => setFilterCustomStart(e.target.value)}
+              className="bg-transparent outline-none text-sm text-slate-700 font-medium flex-1" />
+            <span className="text-slate-400 font-bold">—</span>
+            <input type="date" value={filterCustomEnd} onChange={e => setFilterCustomEnd(e.target.value)}
+              className="bg-transparent outline-none text-sm text-slate-700 font-medium flex-1" />
+          </div>
+        )}
         <div className="relative">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input type="text" placeholder="ค้นหาหมวดหมู่, ผู้บันทึก, เลขที่..." value={search} onChange={e => setSearch(e.target.value)}
@@ -2809,6 +2862,9 @@ const Documents = ({ businesses, user, onSuccess }) => {
   const [loading, setLoading] = useState(true);
   const [filterBiz, setFilterBiz] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterPeriod, setFilterPeriod] = useState('');
+  const [filterCustomStart, setFilterCustomStart] = useState('');
+  const [filterCustomEnd, setFilterCustomEnd] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [search, setSearch] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
