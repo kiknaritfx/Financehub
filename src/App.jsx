@@ -981,6 +981,217 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   );
 };
 
+
+// ─── PAYMENT VOUCHER FORM ───────────────────────────────────────────
+const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
+  const biz = businesses.find(b => String(b.id) === String(tx.business_id));
+  const settings = pvAPI.getSettings();
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
+  const bahtText = (n) => {
+    // แปลงตัวเลขเป็นคำอ่านไทย (ย่อ)
+    const units = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+    const pos = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+    const num = Math.round(Number(n) || 0);
+    if (num === 0) return 'ศูนย์บาทถ้วน';
+    let s = ''; let str = String(num);
+    for (let i = 0; i < str.length; i++) {
+      const d = parseInt(str[i]); const p = str.length - i - 1;
+      if (d === 0) continue;
+      if (p === 1 && d === 2) s += 'ยี่';
+      else if (p === 1 && d === 1) s += '';
+      else s += units[d];
+      s += pos[p];
+    }
+    return s + 'บาทถ้วน';
+  };
+
+  const txDate = (tx.date || tx.created_at || '').slice(0, 10);
+  const [pvNo] = useState(() => {
+    const s = pvAPI.getSettings();
+    const prefix = s.prefix || 'PV';
+    const now = new Date();
+    const yy = String(now.getFullYear() + 543).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const running = (s.running || 0) + 1;
+    return `${prefix}-${yy}${mm}-${String(running).padStart(3, '0')}`;
+  });
+  const [payTo, setPayTo] = useState('');
+  const [docRef, setDocRef] = useState('');
+  const [description, setDescription] = useState(tx.category || '');
+  const [amount] = useState(tx.amount || 0);
+  const [payMethod, setPayMethod] = useState('โอน');
+  const [chequeNo, setChequeNo] = useState('');
+  const [chequeDate, setChequeDate] = useState('');
+  const [branchNo, setBranchNo] = useState('0');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = () => {
+    if (!payTo.trim()) return alert('กรุณาระบุชื่อร้านค้า/ผู้รับเงิน');
+    setSaving(true);
+    try {
+      // update running number
+      const s = pvAPI.getSettings();
+      pvAPI.saveSettings({ ...s, running: (s.running || 0) + 1 });
+      const pv = pvAPI.save({
+        pv_no: pvNo,
+        tx_id: tx.id,
+        txn_id: tx.txn_id,
+        business_id: tx.business_id,
+        business_name: biz?.name || tx.business_name,
+        pay_to: payTo,
+        doc_ref: docRef,
+        description,
+        amount,
+        pay_method: payMethod,
+        cheque_no: chequeNo,
+        cheque_date: chequeDate,
+        branch_no: branchNo,
+        note,
+        issue_date: txDate,
+        created_by: user?.name || 'Admin',
+        created_at: new Date().toISOString(),
+      });
+      onSaved('บันทึกใบสำคัญจ่ายสำเร็จ ✅');
+      generatePVPDF(pv, biz, pvAPI.getSettings());
+    } catch(e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-amber-50 rounded-t-2xl">
+          <div>
+            <h2 className="text-lg font-black text-amber-900">ออกใบสำคัญจ่าย</h2>
+            <p className="text-xs text-amber-700 mt-0.5">Payment Voucher — อ้างอิงธุรกรรม: {tx.txn_id}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-amber-100 text-amber-700"><X size={18} /></button>
+        </div>
+
+        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+          {/* เลขที่ + วันที่ */}
+          <div className="grid grid-cols-2 gap-3 bg-slate-50 rounded-xl p-3">
+            <div>
+              <div className="text-xs text-slate-500 mb-1">เลขที่ใบสำคัญจ่าย</div>
+              <div className="font-black text-slate-800 font-mono">{pvNo}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 mb-1">วันที่</div>
+              <div className="font-semibold text-slate-700">{txDate}</div>
+            </div>
+          </div>
+
+          {/* จ่ายให้แก่ */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5">จ่ายให้แก่ (ชื่อร้านค้า/ผู้รับเงิน) <span className="text-rose-500">*</span></label>
+            <input value={payTo} onChange={e => setPayTo(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-400 outline-none text-sm"
+              placeholder="เช่น Google Play, ร้านวัตถุดิบ ABC..." />
+          </div>
+
+          {/* ช่องทางจ่าย */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5">ช่องทางการจ่าย</label>
+            <div className="flex gap-2 flex-wrap">
+              {['โอน','เงินสด','เช็คธนาคาร'].map(m => (
+                <button key={m} type="button" onClick={() => setPayMethod(m)}
+                  className={`px-4 py-2 rounded-xl border-2 text-sm font-bold transition-all ${payMethod === m ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-slate-200 text-slate-600 hover:border-amber-300'}`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+            {payMethod === 'เช็คธนาคาร' && (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">เลขที่เช็ค</label>
+                  <input value={chequeNo} onChange={e => setChequeNo(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none text-sm focus:ring-2 focus:ring-amber-400" placeholder="เลขที่เช็ค" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">เช็คลงวันที่</label>
+                  <input type="date" value={chequeDate} onChange={e => setChequeDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none text-sm focus:ring-2 focus:ring-amber-400" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ตารางรายการ */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5">รายละเอียดในตาราง</label>
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-800 text-white">
+                    <th className="px-3 py-2 text-left text-xs font-semibold w-28">วันที่เอกสาร</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold">เลขที่เอกสาร</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold">รายการ / Description</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold w-28">จำนวนเงิน</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-white">
+                    <td className="px-3 py-2 text-slate-600">{txDate}</td>
+                    <td className="px-2 py-1">
+                      <input value={docRef} onChange={e => setDocRef(e.target.value)}
+                        className="w-full px-2 py-1 rounded-lg border border-slate-200 outline-none text-xs focus:ring-1 focus:ring-amber-400"
+                        placeholder="เลขที่เอกสาร..." />
+                    </td>
+                    <td className="px-2 py-1">
+                      <input value={description} onChange={e => setDescription(e.target.value)}
+                        className="w-full px-2 py-1 rounded-lg border border-slate-200 outline-none text-xs focus:ring-1 focus:ring-amber-400"
+                        placeholder="รายการ..." />
+                    </td>
+                    <td className="px-3 py-2 text-right font-bold text-slate-800">{fmt(amount)}</td>
+                  </tr>
+                  {[...Array(4)].map((_, i) => (
+                    <tr key={i} className="border-t border-slate-100">
+                      <td className="px-3 py-2 text-slate-300 text-xs">—</td>
+                      <td className="px-3 py-2"></td>
+                      <td className="px-3 py-2"></td>
+                      <td className="px-3 py-2"></td>
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-slate-300 bg-slate-50">
+                    <td colSpan={2} className="px-3 py-2 text-xs font-bold text-slate-500">หมายเหตุ:</td>
+                    <td className="px-3 py-2 text-sm font-bold text-right">จำนวนเงินรวม</td>
+                    <td className="px-3 py-2 text-right font-black text-slate-800">{fmt(amount)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ยอดเงิน (ตัวอักษร) */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-800">
+            <span className="font-semibold">จำนวนเงิน: </span>
+            <span className="font-black">{bahtText(amount)}</span>
+          </div>
+
+          {/* หมายเหตุ */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5">หมายเหตุเพิ่มเติม</label>
+            <input value={note} onChange={e => setNote(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-400 outline-none text-sm"
+              placeholder="หมายเหตุ (ถ้ามี)" />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-5 py-4 border-t border-slate-200">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50">ยกเลิก</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-2 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 disabled:opacity-50 shadow-md">
+            {saving ? <><Loader2 size={15} className="animate-spin" /> กำลังบันทึก...</> : <><Check size={15} /> บันทึก & พิมพ์</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── TRANSACTIONS ───
 const Transactions = ({ businesses, user }) => {
   const [txns, setTxns] = useState([]);
@@ -991,6 +1202,7 @@ const Transactions = ({ businesses, user }) => {
   const [filterPeriod, setFilterPeriod] = useState('');
   const [filterCustomStart, setFilterCustomStart] = useState('');
   const [filterCustomEnd, setFilterCustomEnd] = useState('');
+  const [pvModal, setPvModal] = useState(null); // transaction to make PV from
   const [deleteModal, setDeleteModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [editCategory, setEditCategory] = useState('');
@@ -1190,7 +1402,7 @@ const Transactions = ({ businesses, user }) => {
                     {tx.created_by_name && <span className="text-xs text-slate-400">โดย {tx.created_by_name}</span>}
                   </div>
                   {/* Row 3: action buttons */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={() => openImages(tx)}
                       className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${tx.image_count > 0 ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
                       <ImageIcon size={13} />
@@ -1208,6 +1420,12 @@ const Transactions = ({ businesses, user }) => {
                       className="flex items-center gap-1.5 px-3 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg text-xs font-bold border border-rose-100">
                       <Trash2 size={13} /> ลบ
                     </button>
+                    {tx.type === 'Expense' && !(tx.note || '').includes('[ใบกำกับภาษีฉบับเต็ม]') && (
+                      <button onClick={() => setPvModal(tx)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg text-xs font-bold border border-amber-200">
+                        <FileEdit size={13} /> ออกใบสำคัญจ่าย
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1217,6 +1435,17 @@ const Transactions = ({ businesses, user }) => {
             แสดง {filtered.length} จาก {txns.length} รายการ
           </div>
         </div>
+      )}
+
+      {/* ─── PAYMENT VOUCHER FORM MODAL ─── */}
+      {pvModal && (
+        <PaymentVoucherForm
+          tx={pvModal}
+          businesses={businesses}
+          user={user}
+          onClose={() => setPvModal(null)}
+          onSaved={(msg) => { setPvModal(null); }}
+        />
       )}
 
       {/* ─── IMAGE VIEWER MODAL ─── */}
@@ -2902,6 +3131,221 @@ const DocumentSettings = ({ businesses, onClose }) => {
   );
 };
 
+
+// ─── PAYMENT VOUCHERS PAGE ──────────────────────────
+const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
+  const [pvs, setPvs] = useState(() => pvAPI.getAll());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
+
+  const filtered = pvs.filter(p =>
+    !search || (p.pv_no || '').toLowerCase().includes(search.toLowerCase())
+      || (p.pay_to || '').includes(search)
+      || (p.description || '').includes(search)
+  );
+
+  const handleDelete = (id) => {
+    if (!confirm('ลบใบสำคัญจ่ายนี้หรือไม่?')) return;
+    pvAPI.delete(id);
+    setPvs(pvAPI.getAll());
+    onSuccess('ลบสำเร็จ');
+  };
+
+  const handleReprint = (pv) => {
+    const biz = businesses.find(b => String(b.id) === String(pv.business_id));
+    generatePVPDF(pv, biz, pvAPI.getSettings());
+  };
+
+  return (
+    <div className="space-y-5 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">ใบสำคัญจ่าย</h2>
+          <p className="text-slate-500 text-sm mt-1">Payment Voucher — เอกสารทั้งหมด</p>
+        </div>
+        <button onClick={() => setSettingsOpen(true)}
+          className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 text-sm font-bold">
+          <Settings size={16} /> ตั้งค่า
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-3">
+        <div className="relative">
+          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="ค้นหาเลขที่, ชื่อผู้รับ, รายการ..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-400 outline-none text-sm" />
+        </div>
+      </div>
+
+      {/* List */}
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+          <FileEdit size={48} className="mx-auto mb-3 opacity-30" />
+          <p>ยังไม่มีใบสำคัญจ่าย — ออกใบสำคัญจ่ายได้จากหน้ารายการธุรกรรม</p>
+        </div>
+      ) : (
+        <>
+          {/* Desktop table */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">เลขที่</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">วันที่</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">จ่ายให้แก่</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">รายการ</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">สาขา</th>
+                  <th className="text-right px-4 py-3 font-semibold text-slate-600">จำนวนเงิน</th>
+                  <th className="text-center px-4 py-3 font-semibold text-slate-600">การดำเนินการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map(pv => (
+                  <tr key={pv.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-mono font-bold text-amber-700">{pv.pv_no}</td>
+                    <td className="px-4 py-3 text-slate-500 text-xs">{pv.issue_date}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800">{pv.pay_to}</td>
+                    <td className="px-4 py-3 text-slate-600">{pv.description}</td>
+                    <td className="px-4 py-3 text-slate-500 text-xs">{pv.business_name}</td>
+                    <td className="px-4 py-3 text-right font-black text-slate-800">฿{fmt(pv.amount)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => handleReprint(pv)} title="พิมพ์ซ้ำ"
+                          className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50">
+                          <Printer size={15} />
+                        </button>
+                        <button onClick={() => handleDelete(pv.id)} title="ลบ"
+                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50">
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="sm:hidden space-y-3">
+            {filtered.map(pv => (
+              <div key={pv.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <div className="font-black font-mono text-amber-700">{pv.pv_no}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{pv.issue_date} · {pv.business_name}</div>
+                  </div>
+                  <div className="text-base font-black text-slate-800">฿{fmt(pv.amount)}</div>
+                </div>
+                <div className="text-sm text-slate-700 mb-1"><span className="text-slate-400 text-xs">จ่ายให้แก่ </span>{pv.pay_to}</div>
+                <div className="text-xs text-slate-500 mb-3">{pv.description}</div>
+                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                  <button onClick={() => handleReprint(pv)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-amber-50 text-amber-700 rounded-xl text-xs font-bold border border-amber-200 hover:bg-amber-100">
+                    <Printer size={13} /> พิมพ์ซ้ำ
+                  </button>
+                  <button onClick={() => handleDelete(pv.id)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold border border-rose-100 hover:bg-rose-100">
+                    <Trash2 size={13} /> ลบ
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Settings Drawer */}
+      <Drawer isOpen={settingsOpen} onClose={() => setSettingsOpen(false)}
+        title="ตั้งค่าใบสำคัญจ่าย" description="ตัวย่อเลขที่, ลายเซ็นผู้อนุมัติ และผู้จ่ายเงิน">
+        {settingsOpen && <PVSettings onClose={(saved) => { setSettingsOpen(false); if (saved) onSuccess('บันทึกการตั้งค่าสำเร็จ ✅'); }} />}
+      </Drawer>
+    </div>
+  );
+};
+
+// ─── PV SETTINGS ────────────────────────────────────
+const PVSettings = ({ onClose }) => {
+  const s = pvAPI.getSettings();
+  const [prefix, setPrefix] = useState(s.prefix || 'PV');
+  const [approverName, setApproverName] = useState(s.approver_name || '');
+  const [payerName, setPayerName] = useState(s.payer_name || '');
+  const [approverSig, setApproverSig] = useState(s.approver_sig || '');
+  const [payerSig, setPayerSig] = useState(s.payer_sig || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSigUpload = (e, who) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (who === 'approver') setApproverSig(ev.target.result);
+      else setPayerSig(ev.target.result);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleSave = () => {
+    setSaving(true);
+    pvAPI.saveSettings({ ...s, prefix, approver_name: approverName, payer_name: payerName, approver_sig: approverSig, payer_sig: payerSig });
+    setTimeout(() => { setSaving(false); onClose(true); }, 300);
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      <div>
+        <label className="block text-sm font-bold text-slate-700 mb-2">ตัวย่อเลขที่เอกสาร</label>
+        <div className="flex items-center gap-2">
+          <input value={prefix} onChange={e => setPrefix(e.target.value.toUpperCase())} maxLength={5}
+            className="w-24 px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-mono font-bold text-center" />
+          <span className="text-slate-500 text-sm">เช่น PV-2503-001</span>
+        </div>
+      </div>
+
+      {[
+        { key: 'approver', label: 'ผู้อนุมัติ', name: approverName, setName: setApproverName, sig: approverSig, setSig: setApproverSig },
+        { key: 'payer', label: 'ผู้จ่ายเงิน', name: payerName, setName: setPayerName, sig: payerSig, setSig: setPayerSig },
+      ].map(p => (
+        <div key={p.key} className="bg-slate-50 rounded-2xl p-4 space-y-3">
+          <h4 className="font-bold text-slate-700">{p.label}</h4>
+          <div>
+            <label className="text-xs text-slate-500 block mb-1.5">ชื่อ-นามสกุล</label>
+            <input value={p.name} onChange={e => p.setName(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none text-sm focus:ring-2 focus:ring-blue-500"
+              placeholder="ระบุชื่อ-นามสกุล..." />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 block mb-1.5">ลายเซ็นอิเล็กทรอนิกส์</label>
+            {p.sig ? (
+              <div className="relative inline-block">
+                <img src={p.sig} alt="sig" className="h-16 rounded-xl border border-slate-200 bg-white p-1" />
+                <button onClick={() => p.setSig('')} className="absolute -top-2 -right-2 w-5 h-5 bg-rose-600 text-white rounded-full flex items-center justify-center"><X size={11} /></button>
+              </div>
+            ) : (
+              <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-slate-300 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all w-fit">
+                <Upload size={16} className="text-slate-400" />
+                <span className="text-sm text-slate-500 font-medium">อัพโหลดลายเซ็น (PNG/JPG)</span>
+                <input type="file" accept="image/*" className="hidden" onChange={e => handleSigUpload(e, p.key)} />
+              </label>
+            )}
+          </div>
+        </div>
+      ))}
+
+      <div className="flex gap-3 pt-4 border-t border-slate-200">
+        <button onClick={() => onClose(false)} className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50">ยกเลิก</button>
+        <button onClick={handleSave} disabled={saving}
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 disabled:opacity-50">
+          {saving ? <><Loader2 size={14} className="animate-spin" /> บันทึก...</> : <><Check size={14} /> บันทึกการตั้งค่า</>}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ── Documents (Main Page) ──
 const Documents = ({ businesses, user, onSuccess }) => {
   const [docs, setDocs] = useState([]);
@@ -2911,6 +3355,7 @@ const Documents = ({ businesses, user, onSuccess }) => {
   const [filterPeriod, setFilterPeriod] = useState('');
   const [filterCustomStart, setFilterCustomStart] = useState('');
   const [filterCustomEnd, setFilterCustomEnd] = useState('');
+  const [pvModal, setPvModal] = useState(null); // transaction to make PV from
   const [filterStatus, setFilterStatus] = useState('');
   const [search, setSearch] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -3352,6 +3797,7 @@ export default function App() {
     { id: 'income', label: 'รับเงิน', icon: TrendingUp, color: 'text-emerald-400' },
     { id: 'expense', label: 'จ่ายเงิน', icon: TrendingDown, color: 'text-rose-400' },
     { id: 'transactions', label: 'รายการธุรกรรม', icon: List },
+    { id: 'payment_vouchers', label: 'ใบสำคัญจ่าย', icon: FileEdit, color: 'text-amber-400' },
     { id: 'documents', label: 'เอกสาร', icon: FilePlus, color: 'text-blue-400' },
     { id: 'reports', label: 'รายงาน P&L', icon: FileText },
     { id: 'businesses', label: 'จัดการธุรกิจ', icon: Building2 },
@@ -3368,6 +3814,7 @@ export default function App() {
       case 'businesses': return <BusinessManagement businesses={businesses} setBusinesses={setBusinesses} onSuccess={showToast} />;
       case 'users': return <UserManagement businesses={businesses} onSuccess={showToast} />;
       case 'documents': return <Documents businesses={businesses} user={user} onSuccess={showToast} />;
+      case 'payment_vouchers': return <PaymentVouchersPage businesses={businesses} user={user} onSuccess={showToast} />;
       default: return <Dashboard setCurrentView={setCurrentView} />;
     }
   };
