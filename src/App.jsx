@@ -1843,6 +1843,8 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
   const [deptInput, setDeptInput] = useState('');
   const [incomeCategories, setIncomeCategories] = useState([...DEFAULT_INCOME_CATS]);
   const [expenseCategories, setExpenseCategories] = useState([...DEFAULT_EXPENSE_CATS]);
+  const [customIncomeCatInput, setCustomIncomeCatInput] = useState('');
+  const [customExpenseCatInput, setCustomExpenseCatInput] = useState('');
 
   const resetForm = () => {
     setName(''); setType(''); setPettyCashMax('20000');
@@ -1851,6 +1853,7 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
     setDepartments([]); setDeptInput('');
     setIncomeCategories([...DEFAULT_INCOME_CATS]);
     setExpenseCategories([...DEFAULT_EXPENSE_CATS]);
+    setCustomIncomeCatInput(''); setCustomExpenseCatInput('');
   };
 
   const openAdd = () => { setEditingId(null); resetForm(); setIsDrawerOpen(true); };
@@ -1892,6 +1895,18 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
 
   const toggleCat = (list, setList, cat) => {
     setList(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+  };
+
+  const addCustomCat = (list, setList, input, setInput) => {
+    const val = input.trim();
+    if (!val) return;
+    if (list.includes(val)) { alert('มีหมวดหมู่นี้อยู่แล้ว'); return; }
+    setList(prev => [...prev, val]);
+    setInput('');
+  };
+
+  const removeCustomCat = (setList, cat) => {
+    setList(prev => prev.filter(c => c !== cat));
   };
 
   const handleSave = async (e) => {
@@ -2243,12 +2258,13 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
               </div>
               <p className="text-xs text-slate-500 mb-4 ml-8">หมวดที่ติ๊ก ✅ จะปรากฏให้พนักงานเลือกตอนบันทึกรายรับ-รายจ่าย</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                {/* หมวดรายรับ */}
                 <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span>
                     <p className="text-sm font-bold text-emerald-800">หมวดรายรับ</p>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 mb-3">
                     {DEFAULT_INCOME_CATS.map(cat => (
                       <label key={cat} className="flex items-center gap-3 p-2 rounded-xl hover:bg-emerald-100 cursor-pointer transition-all">
                         <input type="checkbox" checked={incomeCategories.includes(cat)}
@@ -2257,14 +2273,46 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
                         <span className="text-sm text-slate-700">{cat}</span>
                       </label>
                     ))}
+                    {/* Custom income categories */}
+                    {incomeCategories.filter(c => !DEFAULT_INCOME_CATS.includes(c)).map(cat => (
+                      <div key={cat} className="flex items-center gap-2 p-2 rounded-xl bg-emerald-100/60 border border-emerald-200">
+                        <span className="w-4 h-4 shrink-0 flex items-center justify-center">
+                          <span className="w-3 h-3 bg-emerald-500 rounded-sm flex items-center justify-center">
+                            <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3 5.5L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </span>
+                        </span>
+                        <span className="text-sm text-emerald-800 font-medium flex-1">{cat}</span>
+                        <button type="button" onClick={() => removeCustomCat(setIncomeCategories, cat)}
+                          className="p-0.5 rounded-md text-emerald-400 hover:text-rose-500 hover:bg-rose-50 transition-all" title="ลบ">
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Add custom income category */}
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={customIncomeCatInput}
+                      onChange={e => setCustomIncomeCatInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCustomCat(incomeCategories, setIncomeCategories, customIncomeCatInput, setCustomIncomeCatInput))}
+                      placeholder="เพิ่มหมวดหมู่..."
+                      className="flex-1 min-w-0 px-3 py-2 text-sm rounded-xl border border-emerald-200 bg-white focus:ring-2 focus:ring-emerald-400 outline-none placeholder-slate-300" />
+                    <button type="button"
+                      onClick={() => addCustomCat(incomeCategories, setIncomeCategories, customIncomeCatInput, setCustomIncomeCatInput)}
+                      className="shrink-0 flex items-center gap-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all">
+                      <Plus size={13} /> เพิ่ม
+                    </button>
                   </div>
                 </div>
+
+                {/* หมวดรายจ่าย */}
                 <div className="bg-rose-50/50 rounded-2xl p-4 border border-rose-100">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="w-2.5 h-2.5 bg-rose-500 rounded-full"></span>
                     <p className="text-sm font-bold text-rose-800">หมวดรายจ่าย</p>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 mb-3">
                     {DEFAULT_EXPENSE_CATS.map(cat => (
                       <label key={cat} className="flex items-center gap-3 p-2 rounded-xl hover:bg-rose-100 cursor-pointer transition-all">
                         <input type="checkbox" checked={expenseCategories.includes(cat)}
@@ -2273,6 +2321,36 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
                         <span className="text-sm text-slate-700">{cat}</span>
                       </label>
                     ))}
+                    {/* Custom expense categories */}
+                    {expenseCategories.filter(c => !DEFAULT_EXPENSE_CATS.includes(c)).map(cat => (
+                      <div key={cat} className="flex items-center gap-2 p-2 rounded-xl bg-rose-100/60 border border-rose-200">
+                        <span className="w-4 h-4 shrink-0 flex items-center justify-center">
+                          <span className="w-3 h-3 bg-rose-500 rounded-sm flex items-center justify-center">
+                            <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3 5.5L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </span>
+                        </span>
+                        <span className="text-sm text-rose-800 font-medium flex-1">{cat}</span>
+                        <button type="button" onClick={() => removeCustomCat(setExpenseCategories, cat)}
+                          className="p-0.5 rounded-md text-rose-400 hover:text-rose-600 hover:bg-rose-100 transition-all" title="ลบ">
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Add custom expense category */}
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={customExpenseCatInput}
+                      onChange={e => setCustomExpenseCatInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCustomCat(expenseCategories, setExpenseCategories, customExpenseCatInput, setCustomExpenseCatInput))}
+                      placeholder="เพิ่มหมวดหมู่..."
+                      className="flex-1 min-w-0 px-3 py-2 text-sm rounded-xl border border-rose-200 bg-white focus:ring-2 focus:ring-rose-400 outline-none placeholder-slate-300" />
+                    <button type="button"
+                      onClick={() => addCustomCat(expenseCategories, setExpenseCategories, customExpenseCatInput, setCustomExpenseCatInput)}
+                      className="shrink-0 flex items-center gap-1 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all">
+                      <Plus size={13} /> เพิ่ม
+                    </button>
                   </div>
                 </div>
               </div>
