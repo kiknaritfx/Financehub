@@ -13,6 +13,111 @@ import {
 } from 'lucide-react';
 import { businessAPI, transactionAPI, userAPI, reportAPI, auditAPI, imageAPI, documentAPI } from './api.js';
 
+// ─── PAYMENT VOUCHER API (localStorage) ───────────────────────────────
+const pvAPI = {
+  _key: 'fh_payment_vouchers',
+  _settingsKey: 'fh_pv_settings',
+  getAll: () => { try { return JSON.parse(localStorage.getItem('fh_payment_vouchers') || '[]'); } catch { return []; } },
+  save: (pv) => {
+    const list = pvAPI.getAll();
+    if (pv.id) { const i = list.findIndex(p => p.id === pv.id); if (i >= 0) list[i] = pv; else list.unshift(pv); }
+    else { pv.id = Date.now(); list.unshift(pv); }
+    localStorage.setItem('fh_payment_vouchers', JSON.stringify(list)); return pv;
+  },
+  delete: (id) => { localStorage.setItem('fh_payment_vouchers', JSON.stringify(pvAPI.getAll().filter(p => p.id !== id))); },
+  getSettings: () => { try { return JSON.parse(localStorage.getItem('fh_pv_settings') || '{}'); } catch { return {}; } },
+  saveSettings: (s) => { localStorage.setItem('fh_pv_settings', JSON.stringify(s)); return s; },
+};
+
+// ─── GENERATE PAYMENT VOUCHER PDF ─────────────────────────────────────
+const generatePVPDF = (pv, biz, settings) => {
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
+  const bahtText = (n) => {
+    const units = ['','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
+    const pos = ['','สิบ','ร้อย','พัน','หมื่น','แสน','ล้าน'];
+    const num = Math.round(Number(n) || 0); if (num === 0) return 'ศูนย์บาทถ้วน';
+    let s = ''; const str = String(num);
+    for (let i = 0; i < str.length; i++) {
+      const d = parseInt(str[i]); const p = str.length - i - 1; if (d === 0) continue;
+      if (p === 1 && d === 2) s += 'ยี่'; else if (p === 1 && d === 1) s += ''; else s += units[d];
+      s += pos[p];
+    }
+    return s + 'บาทถ้วน';
+  };
+  const approverSig = settings?.approver_sig || '';
+  const payerSig = settings?.payer_sig || '';
+  const bizAddr = biz ? `${biz.address || ''} เลขประจำตัวผู้เสียภาษี ${biz.tax_id || ''}` : '';
+  const emptyRows = Array(9).fill('').map(() => `<tr><td></td><td></td><td></td><td style="text-align:right"></td></tr>`).join('');
+  const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+<title>${pv.pv_no} - ใบสำคัญจ่าย</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Sarabun',sans-serif;font-size:13px;color:#1e293b;background:#fff;padding:20mm;}
+.biz-name{font-size:15px;font-weight:800;}.biz-addr{font-size:12px;color:#475569;margin-top:3px;}
+.doc-header{display:flex;justify-content:space-between;align-items:flex-start;margin:16px 0 20px;}
+.doc-title{font-size:22px;font-weight:800;text-align:center;letter-spacing:1px;}
+.doc-sub{font-size:13px;color:#64748b;font-weight:600;text-decoration:underline;text-align:center;margin-top:2px;}
+.doc-meta table{border-collapse:collapse;}.doc-meta td{padding:3px 6px;font-size:12px;border:1px solid #cbd5e1;min-width:100px;}
+.doc-meta td:first-child{color:#64748b;background:#f8fafc;font-weight:600;}
+.pay-row{display:flex;gap:16px;margin-bottom:8px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;font-size:13px;align-items:center;}
+.pay-row label{color:#64748b;min-width:70px;font-weight:600;flex-shrink:0;}
+.uline{border-bottom:1px solid #1e293b;min-width:90px;display:inline-block;padding:0 4px;}
+table.items{width:100%;border-collapse:collapse;margin:14px 0;}
+table.items th{background:#1e293b;color:#fff;padding:7px 10px;font-size:12px;}
+table.items td{padding:6px 10px;font-size:12px;border-bottom:1px solid #e2e8f0;height:26px;}
+table.items tr:nth-child(even) td{background:#f8fafc;}
+.sum-row td{font-weight:700;border-top:2px solid #1e293b!important;background:#f1f5f9!important;}
+.baht-row{display:flex;gap:8px;margin-bottom:16px;font-size:13px;align-items:center;}
+.baht-text{font-weight:700;border:1px solid #cbd5e1;border-radius:6px;padding:5px 12px;background:#fffbeb;flex:1;text-align:center;}
+.sig-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0;}
+.sig-box{text-align:center;}.sig-img{max-height:56px;max-width:130px;margin:0 auto 2px;display:block;}
+.sig-line{border-bottom:1px dashed #94a3b8;margin:36px 10px 5px;}
+.sig-name{font-size:12px;font-weight:700;color:#334155;}.sig-label{font-size:11px;color:#94a3b8;margin-top:2px;}
+@media print{body{padding:0}@page{margin:15mm;size:A4 portrait;}}
+</style></head><body>
+<div><div class="biz-name">${biz?.name || ''}</div><div class="biz-addr">${bizAddr}</div></div>
+<div class="doc-header">
+  <div style="flex:1"></div>
+  <div style="flex:1"><div class="doc-title">ใบสำคัญจ่าย</div><div class="doc-sub">PAYMENT VOUCHER</div></div>
+  <div class="doc-meta" style="flex:1;text-align:right"><table style="margin-left:auto">
+    <tr><td>เลขที่</td><td>${pv.pv_no}</td></tr>
+    <tr><td>วันที่</td><td>${pv.issue_date || ''}</td></tr>
+  </table></div>
+</div>
+<div class="pay-row"><label>จ่ายให้แก่</label><span style="font-weight:700;flex:1">${pv.pay_to || ''}</span></div>
+<div class="pay-row">
+  <label>เงินสด</label><span class="uline">${pv.pay_method === 'เงินสด' ? '✓' : ''}</span>
+  <label>โอน</label><span class="uline">${pv.pay_method === 'โอน' ? '✓' : ''}</span>
+  <label>เช็คธนาคาร</label><span class="uline">${pv.cheque_no || ''}</span>
+  <label>สาขา</label><span class="uline">${pv.branch_no || '0'}</span>
+  <label>เลขที่เช็ค</label><span class="uline">${pv.cheque_no || '0'}</span>
+</div>
+<table class="items"><thead><tr>
+  <th style="width:100px;text-align:left">วันที่เอกสาร</th>
+  <th style="width:160px;text-align:left">เลขที่เอกสาร</th>
+  <th style="text-align:left">รายการ / Description</th>
+  <th style="width:110px;text-align:right">จำนวนเงิน</th>
+</tr></thead><tbody>
+<tr><td>${pv.issue_date||''}</td><td>${pv.doc_ref||''}</td><td>${pv.description||''}</td><td style="text-align:right;font-weight:600">${fmt(pv.amount)}</td></tr>
+${emptyRows}
+<tr class="sum-row">
+  <td colspan="2" style="font-size:11px;color:#64748b">หมายเหตุ: ${pv.note||''}</td>
+  <td style="text-align:right;font-weight:700">จำนวนเงินรวม</td>
+  <td style="text-align:right;font-weight:800">${fmt(pv.amount)}</td>
+</tr></tbody></table>
+<div class="baht-row"><label>จำนวนเงิน</label><span class="baht-text">${bahtText(pv.amount)}</span></div>
+<div class="sig-row">
+  <div class="sig-box">${approverSig?`<img class="sig-img" src="${approverSig}" alt="sig"/>`:'<div class="sig-line"></div>'}
+    <div class="sig-name">${settings?.approver_name||'...............................'}</div><div class="sig-label">ผู้อนุมัติ</div></div>
+  <div class="sig-box">${payerSig?`<img class="sig-img" src="${payerSig}" alt="sig"/>`:'<div class="sig-line"></div>'}
+    <div class="sig-name">${settings?.payer_name||'...............................'}</div><div class="sig-label">ผู้จ่ายเงิน</div></div>
+  <div class="sig-box"><div class="sig-line"></div><div class="sig-name">.................................</div><div class="sig-label">ผู้รับเงิน</div></div>
+</div></body></html>`;
+  const win = window.open('', '_blank');
+  if (win) { win.document.write(html); win.document.close(); setTimeout(() => { win.focus(); win.print(); }, 600); }
+};
+
 // ─── INVITE API ───
 const inviteAPI = {
   sendInvite: (id) => fetch(`/api/users/${id}/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Error'); return d; }),
@@ -3352,10 +3457,6 @@ const Documents = ({ businesses, user, onSuccess }) => {
   const [loading, setLoading] = useState(true);
   const [filterBiz, setFilterBiz] = useState('');
   const [filterType, setFilterType] = useState('');
-  const [filterPeriod, setFilterPeriod] = useState('');
-  const [filterCustomStart, setFilterCustomStart] = useState('');
-  const [filterCustomEnd, setFilterCustomEnd] = useState('');
-  const [pvModal, setPvModal] = useState(null); // transaction to make PV from
   const [filterStatus, setFilterStatus] = useState('');
   const [search, setSearch] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
