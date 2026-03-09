@@ -303,7 +303,38 @@ const Dashboard = ({ setCurrentView }) => {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('เดือนนี้');
   const [selectedBiz, setSelectedBiz] = useState(null);
+  const [pettyCashModal, setPettyCashModal] = useState(null); // biz object
+  const [pcMax, setPcMax] = useState('');
+  const [pcCurrent, setPcCurrent] = useState('');
+  const [pcSaving, setPcSaving] = useState(false);
   const fmt = (n) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 }).format(Number(n) || 0);
+
+  const openPettyCash = (biz, e) => {
+    e.stopPropagation();
+    setPcMax(String(biz.petty_cash_max || 0));
+    setPcCurrent(String(biz.petty_cash || 0));
+    setPettyCashModal(biz);
+  };
+
+  const savePettyCash = async () => {
+    const max = Number(pcMax);
+    const current = Number(pcCurrent);
+    if (isNaN(max) || max < 0) return alert('วงเงินสูงสุดต้องเป็นตัวเลขที่มากกว่าหรือเท่ากับ 0');
+    if (isNaN(current) || current < 0) return alert('ยอดคงเหลือต้องเป็นตัวเลขที่มากกว่าหรือเท่ากับ 0');
+    if (current > max) return alert('ยอดคงเหลือต้องไม่เกินวงเงินสูงสุด');
+    setPcSaving(true);
+    try {
+      await businessAPI.update(pettyCashModal.id, {
+        ...pettyCashModal,
+        petty_cash_max: max,
+        petty_cash: current,
+      });
+      setBizData(prev => prev.map(b => b.id === pettyCashModal.id
+        ? { ...b, petty_cash_max: max, petty_cash: current } : b));
+      setPettyCashModal(null);
+    } catch (err) { alert('เกิดข้อผิดพลาด: ' + err.message); }
+    finally { setPcSaving(false); }
+  };
 
   const getDateRange = (p) => {
     const now = new Date(new Date().getTime() + 7*60*60*1000);
@@ -362,6 +393,84 @@ const Dashboard = ({ setCurrentView }) => {
 
   return (
     <div className="space-y-6">
+
+      {/* ── Petty Cash Edit Modal ── */}
+      {pettyCashModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPettyCashModal(null)}>
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center">
+                <Wallet size={22} className="text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-800">แก้ไขเงินสดย่อย</h3>
+                <p className="text-slate-500 text-sm">{pettyCashModal.name}</p>
+              </div>
+              <button onClick={() => setPettyCashModal(null)} className="ml-auto p-2 rounded-full hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+            </div>
+
+            <div className="space-y-4">
+              {/* วงเงินสูงสุด */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  💰 วงเงินสูงสุด
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-amber-600">฿</span>
+                  <input type="number" min="0" value={pcMax} onChange={e => setPcMax(e.target.value)}
+                    className="w-full pl-9 pr-4 py-3 rounded-xl border border-amber-200 focus:ring-2 focus:ring-amber-400 outline-none text-lg font-bold bg-amber-50" />
+                </div>
+                <p className="text-xs text-slate-400 mt-1">วงเงินสดย่อยสูงสุดที่สามารถเก็บได้</p>
+              </div>
+
+              {/* ยอดคงเหลือ */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  💵 ยอดคงเหลือปัจจุบัน
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-emerald-600">฿</span>
+                  <input type="number" min="0" value={pcCurrent} onChange={e => setPcCurrent(e.target.value)}
+                    className="w-full pl-9 pr-4 py-3 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-400 outline-none text-lg font-bold bg-emerald-50" />
+                </div>
+                <p className="text-xs text-slate-400 mt-1">จำนวนเงินสดย่อยที่มีอยู่ตอนนี้</p>
+              </div>
+
+              {/* Preview bar */}
+              {Number(pcMax) > 0 && (
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+                    <span>ยอดคงเหลือ</span>
+                    <span className="font-bold">{Math.min(100, Math.round((Number(pcCurrent) / Number(pcMax)) * 100))}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div className={`h-full rounded-full transition-all ${(Number(pcCurrent) / Number(pcMax)) < 0.3 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${Math.min(100, (Number(pcCurrent) / Number(pcMax)) * 100)}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {Number(pcCurrent) > Number(pcMax) && Number(pcMax) > 0 && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-sm text-rose-700 font-medium">
+                  ⚠️ ยอดคงเหลือเกินวงเงินสูงสุด
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setPettyCashModal(null)}
+                className="flex-1 py-3 border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50">
+                ยกเลิก
+              </button>
+              <button onClick={savePettyCash} disabled={pcSaving}
+                className="flex-1 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-2">
+                {pcSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} บันทึก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">ภาพรวมธุรกิจ (Dashboard)</h2>
@@ -407,9 +516,15 @@ const Dashboard = ({ setCurrentView }) => {
               </div>
             </div>
             <div className="mt-auto pt-4 border-t border-slate-100">
-              <div className="flex justify-between text-xs text-slate-600 mb-1">
+              <div className="flex justify-between items-center text-xs text-slate-600 mb-1">
                 <span className="font-bold text-slate-800">เงินสดย่อย</span>
-                <span>{fmt(biz.petty_cash)} / {fmt(biz.petty_cash_max)}</span>
+                <div className="flex items-center gap-2">
+                  <span>{fmt(biz.petty_cash)} / {fmt(biz.petty_cash_max)}</span>
+                  <button onClick={(e) => openPettyCash(biz, e)}
+                    className="w-6 h-6 flex items-center justify-center bg-amber-100 hover:bg-amber-200 text-amber-600 rounded-lg transition-colors" title="แก้ไขเงินสดย่อย">
+                    <Edit2 size={11} />
+                  </button>
+                </div>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2 mb-4">
                 <div className={`h-full rounded-full ${(biz.petty_cash / biz.petty_cash_max) < 0.3 ? 'bg-rose-500' : 'bg-emerald-500'}`}
