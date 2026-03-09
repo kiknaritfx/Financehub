@@ -2354,20 +2354,22 @@ ${doc.remarks ? `<div class="remarks"><strong>หมายเหตุ:</strong>
 };
 
 // ── DocumentForm Component ──
-const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
-  const [bizId, setBizId] = useState(editDoc?.business_id || (businesses[0]?.id || ''));
-  const [docType, setDocType] = useState(editDoc?.doc_type || 'QO');
+const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc, prefillDoc }) => {
+  const src = editDoc || prefillDoc || {};
+  const [bizId, setBizId] = useState(src.business_id || (businesses[0]?.id || ''));
+  const [docType, setDocType] = useState(src.doc_type || 'QO');
   const [docNumber, setDocNumber] = useState(editDoc?.doc_number || '');
-  const [customerName, setCustomerName] = useState(editDoc?.customer_name || '');
-  const [customerAddr, setCustomerAddr] = useState(editDoc?.customer_address || '');
-  const [customerTax, setCustomerTax] = useState(editDoc?.customer_tax_id || '');
-  const [customerEmail, setCustomerEmail] = useState(editDoc?.customer_email || '');
-  const [customerPhone, setCustomerPhone] = useState(editDoc?.customer_phone || '');
+  const [customerName, setCustomerName] = useState(src.customer_name || '');
+  const [customerAddr, setCustomerAddr] = useState(src.customer_address || '');
+  const [customerTax, setCustomerTax] = useState(src.customer_tax_id || '');
+  const [customerEmail, setCustomerEmail] = useState(src.customer_email || '');
+  const [customerPhone, setCustomerPhone] = useState(src.customer_phone || '');
   const [issueDate, setIssueDate] = useState(editDoc?.issue_date || todayTH());
   const [validDate, setValidDate] = useState(editDoc?.valid_date || '');
-  const [refDoc, setRefDoc] = useState(editDoc?.ref_doc || '');
+  const [refDoc, setRefDoc] = useState(src.ref_doc || '');
   const [items, setItems] = useState(() => {
-    if (editDoc?.items) return Array.isArray(editDoc.items) ? editDoc.items : JSON.parse(editDoc.items);
+    const rawItems = editDoc?.items || prefillDoc?.items;
+    if (rawItems) return Array.isArray(rawItems) ? rawItems : JSON.parse(rawItems);
     return [{ description: '', qty: 1, unit: 'หน่วย', unit_price: 0 }];
   });
   const [discount, setDiscount] = useState(editDoc?.discount || 0);
@@ -2430,17 +2432,17 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
           </div>
           <div className="grid grid-cols-3 gap-2 mb-4">
             {DOC_TYPES.map(t => (
-              <button key={t.id} type="button" onClick={() => !editDoc && setDocType(t.id)} disabled={!!editDoc}
-                className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all text-center ${docType === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'} ${editDoc ? 'opacity-60 cursor-not-allowed' : ''}`}>
+              <button key={t.id} type="button" onClick={() => !editDoc && !prefillDoc && setDocType(t.id)} disabled={!!editDoc || !!prefillDoc}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all text-center ${docType === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'} ${(editDoc || prefillDoc) ? 'opacity-60 cursor-not-allowed' : ''}`}>
                 {t.icon} {t.label}
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">สาขา <span className="text-rose-500">*</span></label>
               <select value={bizId} onChange={e => setBizId(Number(e.target.value))} disabled={!!editDoc}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm">
                 {businesses.filter(b => b.status === 'Active').map(b => (
                   <option key={b.id} value={b.id}>{b.icon && !b.icon.startsWith("data:") ? b.icon + " " : ""}{b.name}</option>
                 ))}
@@ -2448,10 +2450,8 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">เลขที่เอกสาร</label>
-              <div className="relative">
-                <input type="text" value={loadingNum ? 'กำลังสร้างเลข...' : docNumber} readOnly
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 font-mono text-sm outline-none" />
-              </div>
+              <input type="text" value={loadingNum ? 'กำลังสร้างเลข...' : docNumber} readOnly
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 font-mono text-sm outline-none" />
             </div>
           </div>
         </section>
@@ -2504,21 +2504,23 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
             <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
             <h3 className="font-bold text-slate-800">วันที่และอ้างอิง</h3>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">วันที่ออกเอกสาร</label>
-              <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">วันที่ออกเอกสาร</label>
+                <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">ใช้ได้ถึง</label>
+                <input type="date" value={validDate} onChange={e => setValidDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">ใช้ได้ถึง</label>
-              <input type="date" value={validDate} onChange={e => setValidDate(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">เอกสารอ้างอิง</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">เอกสารอ้างอิง</label>
               <input type="text" value={refDoc} onChange={e => setRefDoc(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 placeholder="เช่น QO-2568... (ถ้ามี)" />
             </div>
           </div>
@@ -2551,26 +2553,27 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
                   <textarea value={item.description} onChange={e => updateItem(i, 'description', e.target.value)}
                     rows={2} placeholder="คำอธิบายสินค้า/บริการ"
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none" />
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs text-slate-500 font-medium">จำนวน</label>
                       <input type="number" min="1" value={item.qty} onChange={e => updateItem(i, 'qty', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                     </div>
                     <div>
                       <label className="text-xs text-slate-500 font-medium">หน่วย</label>
                       <input type="text" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                         placeholder="หน่วย" />
                     </div>
-                    <div>
-                      <label className="text-xs text-slate-500 font-medium">ราคา/หน่วย</label>
-                      <input type="number" min="0" value={item.unit_price} onChange={e => updateItem(i, 'unit_price', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
-                    </div>
                   </div>
-                  <div className="flex justify-end">
-                    <span className="text-sm font-bold text-slate-700">= ฿{fmt((item.qty || 0) * (item.unit_price || 0))}</span>
+                  <div>
+                    <label className="text-xs text-slate-500 font-medium">ราคา/หน่วย (บาท)</label>
+                    <input type="number" min="0" value={item.unit_price} onChange={e => updateItem(i, 'unit_price', e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                  </div>
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-xs text-slate-400">ยอดรายการ</span>
+                    <span className="text-sm font-bold text-blue-700">฿{fmt((item.qty || 0) * (item.unit_price || 0))}</span>
                   </div>
                 </div>
               </div>
@@ -2781,6 +2784,7 @@ const Documents = ({ businesses, user, onSuccess }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editDoc, setEditDoc] = useState(null);
+  const [prefillDoc, setPrefillDoc] = useState(null);
   const [printLoading, setPrintLoading] = useState(null);
 
   const load = () => {
@@ -2814,6 +2818,23 @@ const Documents = ({ businesses, user, onSuccess }) => {
     await documentAPI.delete(doc.id).catch(() => {});
     setDocs(prev => prev.filter(d => d.id !== doc.id));
     onSuccess('ลบเอกสารสำเร็จ');
+  };
+
+  const handleConvert = (doc, toType) => {
+    setPrefillDoc({
+      business_id: doc.business_id,
+      doc_type: toType,
+      customer_name: doc.customer_name,
+      customer_address: doc.customer_address,
+      customer_tax_id: doc.customer_tax_id,
+      customer_email: doc.customer_email,
+      customer_phone: doc.customer_phone,
+      ref_doc: doc.doc_number,
+      items: doc.items,
+      remarks: doc.remarks,
+    });
+    setEditDoc(null);
+    setIsFormOpen(true);
   };
 
   const handleStatusChange = async (doc, status) => {
@@ -2892,34 +2913,53 @@ const Documents = ({ businesses, user, onSuccess }) => {
               const statusInfo = DOC_STATUS[doc.status] || DOC_STATUS.draft;
               return (
                 <div key={doc.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-                  <div className="flex items-start justify-between mb-3">
+                  {/* Row 1: icon + เลขที่ + ยอดเงิน */}
+                  <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-lg">{typeInfo?.icon}</div>
+                      <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-lg flex-shrink-0">{typeInfo?.icon}</div>
                       <div>
-                        <div className="font-black text-slate-800 font-mono">{doc.doc_number}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{doc.business_name} · {doc.issue_date}</div>
+                        <div className="font-black text-slate-800 font-mono text-sm">{doc.doc_number}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{doc.business_name} · {doc.issue_date?.slice(0,10)}</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
-                      <span className="text-base font-black text-slate-800">฿{fmt(doc.total)}</span>
+                    <div className="text-right">
+                      <div className="text-base font-black text-slate-800">฿{fmt(doc.total)}</div>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
                     </div>
                   </div>
+                  {/* Row 2: ลูกค้า */}
                   <div className="flex items-center gap-2 text-sm text-slate-700 mb-3">
                     <span className="text-slate-400 text-xs">ลูกค้า</span>
                     <span className="font-semibold">{doc.customer_name || '—'}</span>
                   </div>
+                  {/* Row 3: ปุ่มแปลงเอกสาร */}
+                  {doc.doc_type === 'QO' && (
+                    <div className="mb-2">
+                      <button onClick={() => handleConvert(doc, 'IV')}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-700 rounded-xl text-xs font-bold border border-amber-200 hover:bg-amber-100">
+                        📄 สร้างใบแจ้งหนี้จากใบเสนอราคานี้
+                      </button>
+                    </div>
+                  )}
+                  {doc.doc_type === 'IV' && (
+                    <div className="mb-2">
+                      <button onClick={() => handleConvert(doc, 'RC')}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 hover:bg-emerald-100">
+                        🧾 สร้างใบเสร็จรับเงินจากใบแจ้งหนี้นี้
+                      </button>
+                    </div>
+                  )}
+                  {/* Row 4: action buttons */}
                   <div className="flex items-center gap-2 pt-3 border-t border-slate-100 flex-wrap">
-                    {/* Status quick change */}
                     <select value={doc.status} onChange={e => handleStatusChange(doc, e.target.value)}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold bg-white outline-none">
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold bg-white outline-none flex-shrink-0">
                       {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                     </select>
                     <button onClick={() => handlePrint(doc)} disabled={printLoading === doc.id}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50">
                       {printLoading === doc.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
                     </button>
-                    <button onClick={() => { setEditDoc(doc); setIsFormOpen(true); }}
+                    <button onClick={() => { setEditDoc(doc); setPrefillDoc(null); setIsFormOpen(true); }}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100">
                       <Edit2 size={12} /> แก้ไข
                     </button>
@@ -2936,16 +2976,17 @@ const Documents = ({ businesses, user, onSuccess }) => {
       )}
 
       {/* Document Form Drawer */}
-      <Drawer isOpen={isFormOpen} onClose={() => setIsFormOpen(false)}
-        title={editDoc ? `แก้ไข ${editDoc.doc_number}` : 'สร้างเอกสารใหม่'}
+      <Drawer isOpen={isFormOpen} onClose={() => { setIsFormOpen(false); setPrefillDoc(null); }}
+        title={editDoc ? `แก้ไข ${editDoc.doc_number}` : prefillDoc ? `สร้าง${DOC_TYPES.find(t=>t.id===prefillDoc.doc_type)?.label || 'เอกสาร'}` : 'สร้างเอกสารใหม่'}
         description={editDoc ? 'แก้ไขรายละเอียดเอกสาร' : 'กรอกข้อมูลเพื่อสร้างเอกสาร'}>
         {isFormOpen && (
-          <DocumentForm businesses={businesses} user={user} editDoc={editDoc}
-            onClose={() => setIsFormOpen(false)}
+          <DocumentForm businesses={businesses} user={user} editDoc={editDoc} prefillDoc={prefillDoc}
+            onClose={() => { setIsFormOpen(false); setPrefillDoc(null); }}
             onSaved={(saved, isNew) => {
               if (isNew) setDocs(prev => [saved, ...prev]);
               else setDocs(prev => prev.map(d => d.id === saved.id ? { ...d, ...saved } : d));
               setIsFormOpen(false);
+              setPrefillDoc(null);
               onSuccess(isNew ? `สร้าง ${saved.doc_number} สำเร็จ ✅` : 'อัปเดตเอกสารสำเร็จ ✅');
             }} />
         )}
