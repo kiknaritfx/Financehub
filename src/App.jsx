@@ -624,7 +624,7 @@ const Dashboard = ({ setCurrentView, businesses = [] }) => {
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-amber-600">฿</span>
-                  <input type="number" min="0" value={pcMax} onChange={e => setPcMax(e.target.value)}
+                  <input type="number" min="0" step="0.01" value={pcMax} onChange={e => setPcMax(e.target.value)}
                     className="w-full pl-9 pr-4 py-3 rounded-xl border border-amber-200 focus:ring-2 focus:ring-amber-400 outline-none text-lg font-bold bg-amber-50" />
                 </div>
                 <p className="text-xs text-slate-400 mt-1">วงเงินสดย่อยสูงสุดที่สามารถเก็บได้</p>
@@ -637,7 +637,7 @@ const Dashboard = ({ setCurrentView, businesses = [] }) => {
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-emerald-600">฿</span>
-                  <input type="number" min="0" value={pcCurrent} onChange={e => setPcCurrent(e.target.value)}
+                  <input type="number" min="0" step="0.01" value={pcCurrent} onChange={e => setPcCurrent(e.target.value)}
                     className="w-full pl-9 pr-4 py-3 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-400 outline-none text-lg font-bold bg-emerald-50" />
                 </div>
                 <p className="text-xs text-slate-400 mt-1">จำนวนเงินสดย่อยที่มีอยู่ตอนนี้</p>
@@ -906,7 +906,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
                 <label className="w-24 text-sm font-medium text-slate-600">{label}</label>
                 <div className="relative flex-1">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">฿</span>
-                  <input type="number" min="0" value={val} onChange={e => setter(e.target.value)} className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none text-base" placeholder="0" />
+                  <input type="number" min="0" step="0.01" value={val} onChange={e => setter(e.target.value)} className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none text-base" placeholder="0.00" />
                 </div>
               </div>
             ))}
@@ -1062,7 +1062,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
             <label className="block text-sm font-bold text-slate-700 mb-2">จำนวนเงิน</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">฿</span>
-              <input type="number" required min="0" value={amount} onChange={e => setAmount(e.target.value)}
+              <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-rose-600 text-xl font-black" placeholder="0.00" />
             </div>
           </div>
@@ -1775,7 +1775,7 @@ const Transactions = ({ businesses, user }) => {
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1.5">จำนวนเงิน (฿)</label>
-            <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} min="0"
+            <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} min="0" step="0.01"
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
           </div>
           <div>
@@ -2096,7 +2096,7 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">วงเงินสดย่อยสูงสุด <span className="text-rose-500">*</span></label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">฿</span>
-                      <input type="number" required min="0" value={pettyCashMax} onChange={e => setPettyCashMax(e.target.value)}
+                      <input type="number" required min="0" step="0.01" value={pettyCashMax} onChange={e => setPettyCashMax(e.target.value)}
                         className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base transition-all"
                         placeholder="20000" />
                     </div>
@@ -3130,7 +3130,7 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc, prefillDoc 
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 font-medium">ราคา/หน่วย (บาท)</label>
-                    <input type="number" min="0" value={item.unit_price} onChange={e => updateItem(i, 'unit_price', e.target.value)}
+                    <input type="number" min="0" step="0.01" value={item.unit_price} onChange={e => updateItem(i, 'unit_price', e.target.value)}
                       className="w-full px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                   </div>
                   <div className="flex justify-between items-center pt-1">
@@ -3150,7 +3150,7 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc, prefillDoc 
               <span>ส่วนลด</span>
               <div className="flex items-center gap-2">
                 <span className="text-slate-400">฿</span>
-                <input type="number" min="0" value={discount} onChange={e => setDiscount(e.target.value)}
+                <input type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(e.target.value)}
                   className="w-28 px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-right" />
               </div>
             </div>
