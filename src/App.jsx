@@ -2950,34 +2950,36 @@ const Documents = ({ businesses, user, onSuccess }) => {
                       </td>
                       <td className="px-4 py-3 text-right font-black text-slate-800">฿{fmt(doc.total)}</td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          <button onClick={() => setPreviewDoc(doc)} title="Preview"
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100">
-                            <Eye size={12} /> ดู
-                          </button>
+                        <div className="flex items-center justify-end gap-1">
+                          {/* ปุ่มแปลง — แสดงเฉพาะ QO/IV */}
                           {doc.doc_type === 'QO' && (
                             <button onClick={() => handleConvert(doc, 'IV')} title="สร้างใบแจ้งหนี้"
-                              className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold border border-amber-200 hover:bg-amber-100">
-                              📄 IV
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold border border-amber-200 hover:bg-amber-100 whitespace-nowrap">
+                              📄 → IV
                             </button>
                           )}
                           {doc.doc_type === 'IV' && (
                             <button onClick={() => handleConvert(doc, 'RC')} title="สร้างใบเสร็จ"
-                              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 hover:bg-emerald-100">
-                              🧾 RC
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 hover:bg-emerald-100 whitespace-nowrap">
+                              🧾 → RC
                             </button>
                           )}
-                          <button onClick={() => handlePrint(doc)} disabled={printLoading === doc.id}
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50">
-                            {printLoading === doc.id ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />} PDF
+                          {/* ปุ่มหลัก */}
+                          <button onClick={() => setPreviewDoc(doc)} title="ดูรายละเอียด"
+                            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+                            <Eye size={15} />
                           </button>
-                          <button onClick={() => { setEditDoc(doc); setPrefillDoc(null); setIsFormOpen(true); }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100">
-                            <Edit2 size={11} /> แก้ไข
+                          <button onClick={() => handlePrint(doc)} disabled={printLoading === doc.id} title="ดาวน์โหลด PDF"
+                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:opacity-40">
+                            {printLoading === doc.id ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                           </button>
-                          <button onClick={() => handleDelete(doc)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold border border-rose-100 hover:bg-rose-100">
-                            <Trash2 size={11} /> ลบ
+                          <button onClick={() => { setEditDoc(doc); setPrefillDoc(null); setIsFormOpen(true); }} title="แก้ไข"
+                            className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50">
+                            <Edit2 size={15} />
+                          </button>
+                          <button onClick={() => handleDelete(doc)} title="ลบ"
+                            className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50">
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </td>
@@ -3028,27 +3030,32 @@ const Documents = ({ businesses, user, onSuccess }) => {
                       </button>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 pt-3 border-t border-slate-100 flex-wrap">
-                    <button onClick={() => setPreviewDoc(doc)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100">
-                      <Eye size={12} /> Preview
-                    </button>
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    {/* แถว 1: Preview + PDF + แก้ไข + ลบ */}
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <button onClick={() => setPreviewDoc(doc)}
+                        className="flex flex-col items-center gap-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold border border-slate-200 hover:bg-slate-100">
+                        <Eye size={14} /><span>ดู</span>
+                      </button>
+                      <button onClick={() => handlePrint(doc)} disabled={printLoading === doc.id}
+                        className="flex flex-col items-center gap-1 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50">
+                        {printLoading === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                        <span>PDF</span>
+                      </button>
+                      <button onClick={() => { setEditDoc(doc); setPrefillDoc(null); setIsFormOpen(true); }}
+                        className="flex flex-col items-center gap-1 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold border border-blue-100 hover:bg-blue-100">
+                        <Edit2 size={14} /><span>แก้ไข</span>
+                      </button>
+                      <button onClick={() => handleDelete(doc)}
+                        className="flex flex-col items-center gap-1 py-2 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold border border-rose-100 hover:bg-rose-100">
+                        <Trash2 size={14} /><span>ลบ</span>
+                      </button>
+                    </div>
+                    {/* แถว 2: สถานะ */}
                     <select value={doc.status} onChange={e => handleStatusChange(doc, e.target.value)}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold bg-white outline-none flex-shrink-0">
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white outline-none text-center">
                       {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                     </select>
-                    <button onClick={() => handlePrint(doc)} disabled={printLoading === doc.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50">
-                      {printLoading === doc.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
-                    </button>
-                    <button onClick={() => { setEditDoc(doc); setPrefillDoc(null); setIsFormOpen(true); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100">
-                      <Edit2 size={12} /> แก้ไข
-                    </button>
-                    <button onClick={() => handleDelete(doc)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold border border-rose-100 hover:bg-rose-100">
-                      <Trash2 size={12} /> ลบ
-                    </button>
                   </div>
                 </div>
               );
