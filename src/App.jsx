@@ -2234,7 +2234,7 @@ const generatePDF = (doc, biz, settings) => {
 
   const html = `<!DOCTYPE html><html lang="th">
 <head>
-<meta charset="UTF-8"/>
+<meta charset="UTF-8"/><title>${doc.doc_number} - ${typeInfo.label}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -2254,10 +2254,12 @@ const generatePDF = (doc, biz, settings) => {
   table.items thead th{padding:9px 12px;font-size:12px;font-weight:600;}
   table.items tbody tr:nth-child(even){background:#f8fafc;}
   table.items tbody td{padding:8px 12px;font-size:12px;border-bottom:1px solid #e2e8f0;vertical-align:top;}
-  .totals{display:flex;justify-content:flex-end;margin-bottom:20px;}
+  .totals-wrap{display:flex;gap:16px;align-items:flex-start;margin-bottom:20px;}
+  .remarks-side{flex:1;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:12px;min-height:60px;}
+  .totals{display:flex;justify-content:flex-end;flex-shrink:0;}
   .totals-box{min-width:260px;}
   .total-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid #f1f5f9;}
-  .total-final{display:flex;justify-content:space-between;padding:10px 14px;background:#1e293b;color:#fff;border-radius:8px;font-size:15px;font-weight:700;margin-top:6px;}
+  .total-final{display:flex;justify-content:space-between;padding:10px 14px;background:#f1f5f9;color:#1e293b;border-radius:8px;font-size:15px;font-weight:700;margin-top:6px;border:2px solid #e2e8f0;}
   .footer{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;}
   .sig-box{text-align:center;}
   .sig-line{border-bottom:1px dashed #94a3b8;margin:32px 12px 6px;}
@@ -2321,15 +2323,18 @@ const generatePDF = (doc, biz, settings) => {
   </tbody>
 </table>
 
-${doc.remarks ? `<div class="remarks"><strong>หมายเหตุ:</strong> ${doc.remarks}</div>` : ''}
-
-<div class="totals">
-  <div class="totals-box">
-    <div class="total-row"><span>รวมเป็นเงิน</span><span>฿${fmt(doc.subtotal)}</span></div>
-    ${Number(doc.discount) > 0 ? `<div class="total-row"><span>ส่วนลด</span><span>-฿${fmt(doc.discount)}</span></div>` : ''}
-    ${Number(doc.vat) > 0 ? `<div class="total-row"><span>ภาษีมูลค่าเพิ่ม 7%</span><span>+฿${fmt(doc.vat)}</span></div>` : ''}
-    ${Number(doc.wht_amount) > 0 ? `<div class="total-row"><span>หัก ณ ที่จ่าย ${doc.wht_rate}%</span><span>-฿${fmt(doc.wht_amount)}</span></div>` : ''}
-    <div class="total-final"><span>จำนวนเงินรวมทั้งสิ้น</span><span>฿${fmt(doc.total)}</span></div>
+<div class="totals-wrap">
+  <div class="remarks-side">
+    ${doc.remarks ? `<strong>หมายเหตุ:</strong> ${doc.remarks}` : '<span style="color:#94a3b8">-</span>'}
+  </div>
+  <div class="totals">
+    <div class="totals-box">
+      <div class="total-row"><span>รวมเป็นเงิน</span><span>฿${fmt(doc.subtotal)}</span></div>
+      ${Number(doc.discount) > 0 ? `<div class="total-row"><span>ส่วนลด</span><span>-฿${fmt(doc.discount)}</span></div>` : ''}
+      ${Number(doc.vat) > 0 ? `<div class="total-row"><span>ภาษีมูลค่าเพิ่ม 7%</span><span>+฿${fmt(doc.vat)}</span></div>` : ''}
+      ${Number(doc.wht_amount) > 0 ? `<div class="total-row"><span>หัก ณ ที่จ่าย ${doc.wht_rate}%</span><span>-฿${fmt(doc.wht_amount)}</span></div>` : ''}
+      <div class="total-final"><span>จำนวนเงินรวมทั้งสิ้น</span><span>฿${fmt(doc.total)}</span></div>
+    </div>
   </div>
 </div>
 
