@@ -3458,6 +3458,10 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
   // รูปภาพ: { [tx_id]: [{id, file_data, file_name}] }
   const [pvImages, setPvImages] = useState({});
   const [loadingImages, setLoadingImages] = useState({});
+  // Lightbox สำหรับดูรูปขนาดเต็ม
+  const [lightbox, setLightbox] = useState(null); // { images: [], index: 0 }
+  const openLightbox = (images, index = 0) => setLightbox({ images, index });
+  const closeLightbox = () => setLightbox(null);
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
 
   const filtered = pvs.filter(p =>
@@ -3557,10 +3561,10 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
                           <Loader2 size={14} className="animate-spin text-slate-300" />
                         ) : imgs.length > 0 ? (
                           <div className="flex gap-1 flex-wrap">
-                            {imgs.map(img => (
+                            {imgs.map((img, idx) => (
                               <img key={img.id} src={img.file_data} alt={img.file_name}
                                 className="w-9 h-9 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-110 transition-transform"
-                                onClick={() => window.open(img.file_data, '_blank')} />
+                                onClick={() => openLightbox(imgs, idx)} />
                             ))}
                           </div>
                         ) : (
@@ -3613,10 +3617,10 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
                 {imgs.length > 0 && (
                   <div className="flex gap-1.5 flex-wrap mb-2 p-2 bg-slate-50 rounded-xl">
                     <span className="text-xs text-slate-400 w-full mb-1 flex items-center gap-1"><ImageIcon size={11} /> รูปแนบ ({imgs.length})</span>
-                    {imgs.map(img => (
+                    {imgs.map((img, idx) => (
                       <img key={img.id} src={img.file_data} alt={img.file_name}
                         className="w-14 h-14 object-cover rounded-lg border border-slate-200 cursor-pointer"
-                        onClick={() => window.open(img.file_data, '_blank')} />
+                        onClick={() => openLightbox(imgs, idx)} />
                     ))}
                   </div>
                 )}
@@ -3701,8 +3705,8 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
                     <div className="text-xs text-slate-300 bg-slate-50 rounded-xl p-3 text-center">ไม่มีรูปภาพแนบ</div>
                   ) : (
                     <div className="flex gap-2 flex-wrap">
-                      {(pvImages[previewPv.tx_id] || []).map(img => (
-                        <div key={img.id} className="relative group cursor-pointer" onClick={() => window.open(img.file_data, '_blank')}>
+                      {(pvImages[previewPv.tx_id] || []).map((img, idx) => (
+                        <div key={img.id} className="relative group cursor-pointer" onClick={() => openLightbox(pvImages[previewPv.tx_id] || [], idx)}>
                           <img src={img.file_data} alt={img.file_name}
                             className="w-20 h-20 object-cover rounded-xl border-2 border-slate-200 hover:border-amber-400 transition-all" />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-xl transition-all flex items-center justify-center">
@@ -3747,6 +3751,59 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
         title="ตั้งค่าใบสำคัญจ่าย" description="ตัวย่อเลขที่, ลายเซ็นผู้อนุมัติ และผู้จ่ายเงิน">
         {settingsOpen && <PVSettings onClose={(saved) => { setSettingsOpen(false); if (saved) onSuccess('บันทึกการตั้งค่าสำเร็จ ✅'); }} />}
       </Drawer>
+
+      {/* ── Lightbox Modal ── */}
+      {lightbox && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          onClick={closeLightbox}>
+          <div className="relative flex flex-col items-center max-w-4xl w-full px-4" onClick={e => e.stopPropagation()}>
+            {/* Close */}
+            <button onClick={closeLightbox}
+              className="absolute top-0 right-4 p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all z-10">
+              <X size={24} />
+            </button>
+            {/* Image */}
+            <img
+              src={lightbox.images[lightbox.index].file_data}
+              alt={lightbox.images[lightbox.index].file_name}
+              className="max-h-[80vh] max-w-full object-contain rounded-2xl shadow-2xl" />
+            {/* Caption */}
+            <div className="mt-3 text-white/60 text-sm">
+              {lightbox.images[lightbox.index].file_name}
+              {lightbox.images.length > 1 && (
+                <span className="ml-2 text-white/40">{lightbox.index + 1} / {lightbox.images.length}</span>
+              )}
+            </div>
+            {/* Prev / Next */}
+            {lightbox.images.length > 1 && (
+              <div className="flex gap-3 mt-3">
+                <button
+                  onClick={() => setLightbox(p => ({ ...p, index: Math.max(0, p.index - 1) }))}
+                  disabled={lightbox.index === 0}
+                  className="px-5 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white rounded-xl text-sm font-bold transition-all">
+                  ← ก่อนหน้า
+                </button>
+                <button
+                  onClick={() => setLightbox(p => ({ ...p, index: Math.min(p.images.length - 1, p.index + 1) }))}
+                  disabled={lightbox.index === lightbox.images.length - 1}
+                  className="px-5 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white rounded-xl text-sm font-bold transition-all">
+                  ถัดไป →
+                </button>
+              </div>
+            )}
+            {/* Thumbnails */}
+            {lightbox.images.length > 1 && (
+              <div className="flex gap-2 mt-3 flex-wrap justify-center">
+                {lightbox.images.map((img, idx) => (
+                  <img key={img.id} src={img.file_data} alt={img.file_name}
+                    onClick={() => setLightbox(p => ({ ...p, index: idx }))}
+                    className={`w-12 h-12 object-cover rounded-lg border-2 cursor-pointer transition-all ${idx === lightbox.index ? 'border-amber-400 scale-110' : 'border-white/20 hover:border-white/50'}`} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
