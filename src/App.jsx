@@ -2790,6 +2790,7 @@ const Documents = ({ businesses, user, onSuccess }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editDoc, setEditDoc] = useState(null);
   const [prefillDoc, setPrefillDoc] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const [printLoading, setPrintLoading] = useState(null);
 
   const load = () => {
@@ -2854,18 +2855,19 @@ const Documents = ({ businesses, user, onSuccess }) => {
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
-      <div className="flex justify-between items-center">
+      {/* Header — desktop: row, mobile: stack */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">เอกสารทางธุรกิจ</h2>
           <p className="text-slate-500 text-sm mt-1">ใบเสนอราคา · ใบแจ้งหนี้ · ใบเสร็จ</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setIsSettingsOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 text-sm font-bold">
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 text-sm font-bold">
             <Settings size={16} /> ตั้งค่า
           </button>
-          <button onClick={() => { setEditDoc(null); setIsFormOpen(true); }}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm font-bold shadow-md">
+          <button onClick={() => { setEditDoc(null); setPrefillDoc(null); setIsFormOpen(true); }}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm font-bold shadow-md">
             <Plus size={16} /> สร้างเอกสาร
           </button>
         </div>
@@ -2911,14 +2913,88 @@ const Documents = ({ businesses, user, onSuccess }) => {
             <FileText size={48} className="mx-auto mb-3 opacity-30" />
             <p>ยังไม่มีเอกสาร กด "สร้างเอกสาร" เพื่อเริ่มต้น</p>
           </div>
-        ) : (
-          <div className="space-y-3">
+        ) : (<>
+          {/* ── DESKTOP TABLE (hidden on mobile) ── */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">เลขที่เอกสาร</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">ลูกค้า</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">วันที่</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">สถานะ</th>
+                  <th className="text-right px-4 py-3 font-semibold text-slate-600">ยอดรวม</th>
+                  <th className="text-center px-4 py-3 font-semibold text-slate-600">การดำเนินการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map(doc => {
+                  const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type);
+                  const statusInfo = DOC_STATUS[doc.status] || DOC_STATUS.draft;
+                  return (
+                    <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{typeInfo?.icon}</span>
+                          <span className="font-mono font-bold text-slate-800">{doc.doc_number}</span>
+                        </div>
+                        <div className="text-xs text-slate-400 ml-7">{doc.business_name}</div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 font-medium">{doc.customer_name || '—'}</td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">{doc.issue_date?.slice(0,10)}</td>
+                      <td className="px-4 py-3">
+                        <select value={doc.status} onChange={e => handleStatusChange(doc, e.target.value)}
+                          className={`px-2 py-1 rounded-lg border text-xs font-bold outline-none ${statusInfo.color}`}>
+                          {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-slate-800">฿{fmt(doc.total)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <button onClick={() => setPreviewDoc(doc)} title="Preview"
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100">
+                            <Eye size={12} /> ดู
+                          </button>
+                          {doc.doc_type === 'QO' && (
+                            <button onClick={() => handleConvert(doc, 'IV')} title="สร้างใบแจ้งหนี้"
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold border border-amber-200 hover:bg-amber-100">
+                              📄 IV
+                            </button>
+                          )}
+                          {doc.doc_type === 'IV' && (
+                            <button onClick={() => handleConvert(doc, 'RC')} title="สร้างใบเสร็จ"
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 hover:bg-emerald-100">
+                              🧾 RC
+                            </button>
+                          )}
+                          <button onClick={() => handlePrint(doc)} disabled={printLoading === doc.id}
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50">
+                            {printLoading === doc.id ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />} PDF
+                          </button>
+                          <button onClick={() => { setEditDoc(doc); setPrefillDoc(null); setIsFormOpen(true); }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100">
+                            <Edit2 size={11} /> แก้ไข
+                          </button>
+                          <button onClick={() => handleDelete(doc)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold border border-rose-100 hover:bg-rose-100">
+                            <Trash2 size={11} /> ลบ
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── MOBILE CARDS (hidden on desktop) ── */}
+          <div className="sm:hidden space-y-3">
             {filtered.map(doc => {
               const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type);
               const statusInfo = DOC_STATUS[doc.status] || DOC_STATUS.draft;
               return (
                 <div key={doc.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-                  {/* Row 1: icon + เลขที่ + ยอดเงิน */}
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-lg flex-shrink-0">{typeInfo?.icon}</div>
@@ -2932,12 +3008,10 @@ const Documents = ({ businesses, user, onSuccess }) => {
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
                     </div>
                   </div>
-                  {/* Row 2: ลูกค้า */}
                   <div className="flex items-center gap-2 text-sm text-slate-700 mb-3">
                     <span className="text-slate-400 text-xs">ลูกค้า</span>
                     <span className="font-semibold">{doc.customer_name || '—'}</span>
                   </div>
-                  {/* Row 3: ปุ่มแปลงเอกสาร */}
                   {doc.doc_type === 'QO' && (
                     <div className="mb-2">
                       <button onClick={() => handleConvert(doc, 'IV')}
@@ -2954,8 +3028,11 @@ const Documents = ({ businesses, user, onSuccess }) => {
                       </button>
                     </div>
                   )}
-                  {/* Row 4: action buttons */}
                   <div className="flex items-center gap-2 pt-3 border-t border-slate-100 flex-wrap">
+                    <button onClick={() => setPreviewDoc(doc)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100">
+                      <Eye size={12} /> Preview
+                    </button>
                     <select value={doc.status} onChange={e => handleStatusChange(doc, e.target.value)}
                       className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold bg-white outline-none flex-shrink-0">
                       {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -2977,8 +3054,95 @@ const Documents = ({ businesses, user, onSuccess }) => {
               );
             })}
           </div>
-        )
+        </>)
       )}
+
+      {/* ── Preview Modal ── */}
+      {previewDoc && (() => {
+        const typeInfo = DOC_TYPES.find(t => t.id === previewDoc.doc_type);
+        const statusInfo = DOC_STATUS[previewDoc.status] || DOC_STATUS.draft;
+        const items = (() => { try { return Array.isArray(previewDoc.items) ? previewDoc.items : JSON.parse(previewDoc.items || '[]'); } catch { return []; } })();
+        const biz = businesses.find(b => b.id === previewDoc.business_id);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setPreviewDoc(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="flex items-center justify-between p-5 border-b border-slate-200 sticky top-0 bg-white rounded-t-2xl z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-xl">{typeInfo?.icon}</div>
+                  <div>
+                    <div className="font-black text-slate-800 font-mono">{previewDoc.doc_number}</div>
+                    <div className="text-xs text-slate-500">{typeInfo?.label}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
+                  <button onClick={() => setPreviewDoc(null)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500"><X size={18} /></button>
+                </div>
+              </div>
+              {/* Body */}
+              <div className="p-5 space-y-4">
+                {/* ข้อมูลเอกสาร */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-50 rounded-xl p-3">
+                    <div className="text-xs text-slate-400 mb-1">ลูกค้า</div>
+                    <div className="font-semibold text-slate-800 text-sm">{previewDoc.customer_name || '—'}</div>
+                    {previewDoc.customer_address && <div className="text-xs text-slate-500 mt-1">{previewDoc.customer_address}</div>}
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-3">
+                    <div className="text-xs text-slate-400 mb-1">รายละเอียด</div>
+                    <div className="text-xs text-slate-600 space-y-0.5">
+                      <div>วันที่: <span className="font-semibold">{previewDoc.issue_date?.slice(0,10)}</span></div>
+                      {previewDoc.valid_date && <div>ใช้ได้ถึง: <span className="font-semibold">{previewDoc.valid_date?.slice(0,10)}</span></div>}
+                      {previewDoc.ref_doc && <div>อ้างอิง: <span className="font-semibold">{previewDoc.ref_doc}</span></div>}
+                      <div>สาขา: <span className="font-semibold">{biz?.name || previewDoc.business_name}</span></div>
+                    </div>
+                  </div>
+                </div>
+                {/* รายการ */}
+                <div>
+                  <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">รายการสินค้า/บริการ</div>
+                  <div className="space-y-2">
+                    {items.map((item, i) => (
+                      <div key={i} className="flex justify-between items-start bg-slate-50 rounded-xl px-3 py-2.5">
+                        <div className="flex-1 pr-3">
+                          <div className="text-sm font-medium text-slate-800">{item.description || '—'}</div>
+                          <div className="text-xs text-slate-500">{item.qty} {item.unit} × ฿{fmt(item.unit_price)}</div>
+                        </div>
+                        <div className="text-sm font-bold text-slate-800 flex-shrink-0">฿{fmt((item.qty||1)*(item.unit_price||0))}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* ยอดรวม */}
+                <div className="bg-slate-800 text-white rounded-xl p-4 space-y-1.5">
+                  <div className="flex justify-between text-sm"><span className="text-slate-300">รวมเป็นเงิน</span><span>฿{fmt(previewDoc.subtotal)}</span></div>
+                  {Number(previewDoc.discount) > 0 && <div className="flex justify-between text-sm"><span className="text-slate-300">ส่วนลด</span><span>-฿{fmt(previewDoc.discount)}</span></div>}
+                  <div className="flex justify-between font-black text-base pt-1 border-t border-slate-600">
+                    <span>ยอดรวมทั้งสิ้น</span><span>฿{fmt(previewDoc.total)}</span>
+                  </div>
+                </div>
+                {previewDoc.remarks && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-slate-700">
+                    <span className="font-semibold text-amber-700">หมายเหตุ: </span>{previewDoc.remarks}
+                  </div>
+                )}
+              </div>
+              {/* Footer actions */}
+              <div className="p-4 border-t border-slate-200 flex gap-2">
+                <button onClick={() => { setPreviewDoc(null); setEditDoc(previewDoc); setPrefillDoc(null); setIsFormOpen(true); }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold border border-blue-100 hover:bg-blue-100">
+                  <Edit2 size={14} /> แก้ไข
+                </button>
+                <button onClick={() => { handlePrint(previewDoc); setPreviewDoc(null); }} disabled={printLoading === previewDoc.id}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 disabled:opacity-50">
+                  <Download size={14} /> ดาวน์โหลด PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Document Form Drawer */}
       <Drawer isOpen={isFormOpen} onClose={() => { setIsFormOpen(false); setPrefillDoc(null); }}
