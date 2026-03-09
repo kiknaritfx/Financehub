@@ -241,11 +241,18 @@ route('delete', '/api/transactions/:id', async (req, res) => {
   try {
     const old = await pool.query('SELECT * FROM transactions WHERE id=$1', [req.params.id]);
     if (old.rows.length > 0) {
+      const tx = old.rows[0];
       await pool.query(
         `INSERT INTO audit_logs (transaction_id,user_name,action,field_changed,old_value) VALUES ($1,$2,'DELETE','ทั้งหมด',$3)`,
-        [req.params.id, 'Admin', `ลบรายการ ${old.rows[0].category} ฿${old.rows[0].amount}`]
+        [req.params.id, 'Admin', `ลบรายการ ${tx.category} ฿${tx.amount}`]
       ).catch(() => {});
-      // ลบ images ที่ผูกอยู่
+      // คืนเงินสดย่อย ถ้า petty_cash=true และเป็นรายจ่าย
+      if (tx.petty_cash && tx.type === 'Expense') {
+        await pool.query(
+          'UPDATE businesses SET petty_cash=LEAST(petty_cash_max, petty_cash+$1) WHERE id=$2',
+          [tx.amount, tx.business_id]
+        ).catch(() => {});
+      }
       await pool.query('DELETE FROM transaction_images WHERE transaction_id=$1', [req.params.id]).catch(() => {});
     }
     await pool.query('DELETE FROM transactions WHERE id=$1', [req.params.id]);
