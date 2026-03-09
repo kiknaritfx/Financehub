@@ -37,6 +37,16 @@ const STANDARD_CATEGORIES = {
 };
 const EMOJIS = ['☕', '🍜', '🥐', '🍕', '🍔', '🍰', '🍱', '🍛', '🏪', '🏬', '🛒', '📦', '💼', '🏢', '🏭', '🏦', '💇', '💅', '🏥', '🔧', '🎨', '📚'];
 const FEATURE_LIST = [
+
+// ── Timezone helper: คืน datetime string แบบ +07:00 (ไทย) ──
+const nowTH = () => {
+  const now = new Date();
+  const offset = 7 * 60; // นาที
+  const local = new Date(now.getTime() + (offset - now.getTimezoneOffset()) * 60000);
+  return local.toISOString().replace('Z', '');
+};
+const todayTH = () => nowTH().split('T')[0];
+
   { id: 'Dashboard', label: 'ดู Dashboard' },
   { id: 'Income', label: 'บันทึกรายรับ' },
   { id: 'Expense', label: 'บันทึกรายจ่าย' },
@@ -296,7 +306,7 @@ const Dashboard = ({ setCurrentView }) => {
   const fmt = (n) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 }).format(Number(n) || 0);
 
   const getDateRange = (p) => {
-    const now = new Date();
+    const now = new Date(new Date().getTime() + 7*60*60*1000);
     if (p === 'วันนี้') {
       const s = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().split('T')[0];
       return { start: s, end: s };
@@ -487,7 +497,7 @@ const Dashboard = ({ setCurrentView }) => {
 // ─── INCOME ENTRY ───
 const IncomeEntry = ({ businesses, onSuccess }) => {
   const [selectedBizId, setSelectedBizId] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(todayTH());
   const [category, setCategory] = useState('รายได้จากการขาย (Sales)');
   const [cash, setCash] = useState('');
   const [transfer, setTransfer] = useState('');
@@ -592,7 +602,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
 // ─── EXPENSE ENTRY ───
 const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   const [selectedBizId, setSelectedBizId] = useState('');
-  const [datetime, setDatetime] = useState(new Date().toISOString().slice(0, 16));
+  const [datetime, setDatetime] = useState(nowTH().slice(0, 16));
   const [category, setCategory] = useState('ต้นทุนขาย/วัตถุดิบ (COGS)');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -1643,8 +1653,8 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
 // ─── REPORTS ───
 const Reports = ({ businesses }) => {
   const [selectedBiz, setSelectedBiz] = useState('all');
-  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(todayTH().slice(0,7) + '-01');
+  const [endDate, setEndDate] = useState(todayTH());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
