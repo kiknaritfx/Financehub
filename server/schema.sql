@@ -118,3 +118,42 @@ ALTER TABLE businesses ADD COLUMN IF NOT EXISTS expense_categories TEXT[] DEFAUL
 
 -- แก้ icon column ให้รองรับ base64 image
 ALTER TABLE businesses ALTER COLUMN icon TYPE TEXT;
+-- ตาราง document_settings (ตั้งค่าตัวย่อ + running number per business)
+CREATE TABLE IF NOT EXISTS document_settings (
+  id SERIAL PRIMARY KEY,
+  business_id INTEGER REFERENCES businesses(id) ON DELETE CASCADE,
+  doc_type VARCHAR(20) NOT NULL, -- 'QO', 'IV', 'RC'
+  prefix VARCHAR(20) NOT NULL DEFAULT '',
+  running_number INTEGER NOT NULL DEFAULT 1,
+  signature_image TEXT, -- base64
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(business_id, doc_type)
+);
+
+-- ตาราง documents
+CREATE TABLE IF NOT EXISTS documents (
+  id SERIAL PRIMARY KEY,
+  doc_number VARCHAR(50) UNIQUE NOT NULL,
+  doc_type VARCHAR(20) NOT NULL, -- 'QO','IV','RC'
+  business_id INTEGER REFERENCES businesses(id) ON DELETE SET NULL,
+  customer_name VARCHAR(200),
+  customer_address TEXT,
+  customer_tax_id VARCHAR(20),
+  customer_email VARCHAR(200),
+  customer_phone VARCHAR(50),
+  issue_date DATE NOT NULL,
+  valid_date DATE,
+  ref_doc VARCHAR(50),
+  items JSONB NOT NULL DEFAULT '[]',
+  subtotal NUMERIC(12,2) DEFAULT 0,
+  discount NUMERIC(12,2) DEFAULT 0,
+  total NUMERIC(12,2) DEFAULT 0,
+  remarks TEXT,
+  status VARCHAR(20) DEFAULT 'draft', -- draft, sent, paid, cancelled
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Migration
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS discount NUMERIC(12,2) DEFAULT 0;

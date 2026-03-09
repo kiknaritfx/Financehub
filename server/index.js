@@ -362,3 +362,173 @@ if (process.env.VERCEL !== '1') {
   app.listen(PORT, () => console.log(`🚀 FinanceHub API → http://localhost:${PORT}`));
 }
 export default app;
+
+// ═══════════════════════════════════════════════
+// ─── DOCUMENTS ───────────────────────────────
+// ═══════════════════════════════════════════════
+
+// GET settings ของ business + doc_type
+route('get', '/api/document-settings/:businessId', async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT * FROM document_settings WHERE business_id=$1 ORDER BY doc_type',
+      [req.params.businessId]
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// UPSERT settings
+route('post', '/api/document-settings', async (req, res) => {
+  const { business_id, doc_type, prefix, running_number, signature_image } = req.body;
+  try {
+    const r = await pool.query(`
+      INSERT INTO document_settings (business_id, doc_type, prefix, running_number, signature_image)
+      VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (business_id, doc_type) DO UPDATE
+        SET prefix=$3, running_number=$4, signature_image=COALESCE($5, document_settings.signature_image), updated_at=NOW()
+      RETURNING *`,
+      [business_id, doc_type, prefix, running_number || 1, signature_image || null]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET next doc number (preview)
+route('get', '/api/documents/next-number', async (req, res) => {
+  const { business_id, doc_type } = req.query;
+  try {
+    const r = await pool.query(
+      'SELECT prefix, running_number FROM document_settings WHERE business_id=$1 AND doc_type=$2',
+      [business_id, doc_type]
+    );
+    const prefix = r.rows[0]?.prefix || doc_type;
+    const num = r.rows[0]?.running_number || 1;
+    const year = new Date().getFullYear() + 543; // พ.ศ.
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const docNum = `${prefix}-${year}${month}${String(num).padStart(5, '0')}`;
+    res.json({ doc_number: docNum, running_number: num });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET all documents (with filters)
+route('get', '/api/documents', async (req, res) => {
+  const { business_id, doc_type, status } = req.query;
+  try {
+    let w = 'WHERE 1=1'; const p = []; let i = 1;
+    if (business_id) { w += ` AND d.business_id=$${i++}`; p.push(business_id); }
+    if (doc_type) { w += ` AND d.doc_type=$${i++}`; p.push(doc_type); }
+    if (status) { w += ` AND d.status=$${i++}`; p.push(status); }
+    const r = await pool.query(
+      `SELECT d.*, b.name as business_name, u.name as created_by_name
+       FROM documents d
+       LEFT JOIN businesses b ON d.business_id = b.id
+       LEFT JOIN users u ON d.created_by = u.id
+       ${w} ORDER BY d.created_at DESC`, p
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET single document
+route('get', '/api/documents/:id', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT d.*, b.name as business_name, b.icon as business_icon, b.logo_type,
+              b.tax_name, b.tax_id as business_tax_id, b.tax_address,
+              u.name as created_by_name
+       FROM documents d
+       LEFT JOIN businesses b ON d.business_id = b.id
+       LEFT JOIN users u ON d.created_by = u.id
+       WHERE d.id=$1`, [req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบเอกสาร' });
+    // get signature
+    const sig = await pool.query(
+      'SELECT signature_image FROM document_settings WHERE business_id=$1 AND doc_type=$2',
+      [r.rows[0].business_id, r.rows[0].doc_type]
+    );
+    res.json({ ...r.rows[0], signature_image: sig.rows[0]?.signature_image || null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST create document
+route('post', '/api/documents', async (req, res) => {
+  const { business_id, doc_type, customer_name, customer_address, customer_tax_id,
+    customer_email, customer_phone, issue_date, valid_date, ref_doc,
+    items, subtotal, discount, total, remarks, created_by } = req.body;
+  try {
+    // get & increment running number
+    const settingRes = await pool.query(
+      'SELECT prefix, running_number FROM document_settings WHERE business_id=$1 AND doc_type=$2',
+      [business_id, doc_type]
+    );
+    const prefix = settingRes.rows[0]?.prefix || doc_type;
+    const num = settingRes.rows[0]?.running_number || 1;
+    const d = new Date(issue_date || new Date());
+    const year = d.getFullYear() + 543;
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const docNumber = `${prefix}-${year}${month}${String(num).padStart(5, '0')}`;
+
+    const r = await pool.query(`
+      INSERT INTO documents (doc_number,doc_type,business_id,customer_name,customer_address,
+        customer_tax_id,customer_email,customer_phone,issue_date,valid_date,ref_doc,
+        items,subtotal,discount,total,remarks,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::JSONB,$13,$14,$15,$16,$17)
+      RETURNING *`,
+      [docNumber, doc_type, business_id, customer_name, customer_address,
+       customer_tax_id, customer_email, customer_phone,
+       issue_date, valid_date || null, ref_doc || null,
+       JSON.stringify(items || []), subtotal || 0, discount || 0, total || 0,
+       remarks || null, created_by || null]
+    );
+    // increment running number
+    await pool.query(
+      `INSERT INTO document_settings (business_id, doc_type, prefix, running_number)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (business_id, doc_type) DO UPDATE SET running_number = document_settings.running_number + 1`,
+      [business_id, doc_type, prefix, num + 1]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'เลขเอกสารซ้ำ กรุณาลองใหม่' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT update document
+route('put', '/api/documents/:id', async (req, res) => {
+  const { customer_name, customer_address, customer_tax_id, customer_email, customer_phone,
+    issue_date, valid_date, ref_doc, items, subtotal, discount, total, remarks, status } = req.body;
+  try {
+    const r = await pool.query(`
+      UPDATE documents SET customer_name=$1,customer_address=$2,customer_tax_id=$3,
+        customer_email=$4,customer_phone=$5,issue_date=$6,valid_date=$7,ref_doc=$8,
+        items=$9::JSONB,subtotal=$10,discount=$11,total=$12,remarks=$13,status=$14,updated_at=NOW()
+      WHERE id=$15 RETURNING *`,
+      [customer_name, customer_address, customer_tax_id, customer_email, customer_phone,
+       issue_date, valid_date || null, ref_doc || null,
+       JSON.stringify(items || []), subtotal || 0, discount || 0, total || 0,
+       remarks || null, status || 'draft', req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบเอกสาร' });
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH status only
+route('patch', '/api/documents/:id/status', async (req, res) => {
+  try {
+    const r = await pool.query(
+      'UPDATE documents SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING *',
+      [req.body.status, req.params.id]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE document
+route('delete', '/api/documents/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM documents WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});

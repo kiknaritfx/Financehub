@@ -2,15 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, TrendingUp, TrendingDown, List, Building2,
   FileText, Users, Menu, X, Eye, EyeOff, Upload, Plus, Search,
+  FileEdit, FilePlus, Download, Send, Receipt, ClipboardList, Stamp,
   MoreVertical, AlertCircle, Image as ImageIcon, History,
-  Check, Settings, LogOut, ChevronDown, Calendar, Wallet, FileEdit,
+  Check, Settings, LogOut, ChevronDown, Calendar, Wallet,
   Download, Printer, Trash2, Smile, ImagePlus, UploadCloud, Edit2, Power,
   ChevronRight, ArrowUp, ArrowDown, Banknote, Landmark,
   CreditCard, CornerDownRight, FolderTree, Tags, BarChart2,
   Phone, Shield, Lightbulb, CheckSquare, Lock, User, CalendarDays,
   Loader2
 } from 'lucide-react';
-import { businessAPI, transactionAPI, userAPI, reportAPI, auditAPI, imageAPI } from './api.js';
+import { businessAPI, transactionAPI, userAPI, reportAPI, auditAPI, imageAPI, documentAPI } from './api.js';
 
 // ─── INVITE API ───
 const inviteAPI = {
@@ -2195,6 +2196,719 @@ const UserManagement = ({ businesses, onSuccess }) => {
   );
 };
 
+
+// ═══════════════════════════════════════════════════════
+// ─── DOCUMENTS MODULE ──────────────────────────────────
+// ═══════════════════════════════════════════════════════
+
+const DOC_TYPES = [
+  { id: 'QO', label: 'ใบเสนอราคา', labelEn: 'Quotation', color: 'blue', icon: '📋' },
+  { id: 'IV', label: 'ใบแจ้งหนี้/ใบวางบิล', labelEn: 'Invoice', color: 'amber', icon: '📄' },
+  { id: 'RC', label: 'ใบเสร็จรับเงิน', labelEn: 'Receipt', color: 'emerald', icon: '🧾' },
+];
+
+const DOC_STATUS = {
+  draft:     { label: 'ร่าง',       color: 'bg-slate-100 text-slate-600' },
+  sent:      { label: 'ส่งแล้ว',    color: 'bg-blue-100 text-blue-700' },
+  paid:      { label: 'ชำระแล้ว',   color: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { label: 'ยกเลิก',     color: 'bg-rose-100 text-rose-700' },
+};
+
+const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
+
+// ── PDF Generator (html→print) ──
+const generatePDF = (doc, biz, settings) => {
+  const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type) || DOC_TYPES[0];
+  const items = Array.isArray(doc.items) ? doc.items : JSON.parse(doc.items || '[]');
+  const sig = settings?.signature_image || doc.signature_image;
+  const issuerAddress = biz?.tax_address || '135/9 หมู่ที่ 10 ตำบลสุเทพ อำเภอเมืองเชียงใหม่ จ.เชียงใหม่ 50200';
+  const issuerTaxId = biz?.tax_id || biz?.business_tax_id || '';
+  const issuerName = biz?.tax_name || biz?.name || '';
+
+  const html = `<!DOCTYPE html><html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Sarabun',sans-serif;font-size:13px;color:#1e293b;background:#fff;padding:24px;}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #e2e8f0;}
+  .doc-title{font-size:26px;font-weight:700;color:#1e293b;}
+  .doc-sub{font-size:13px;color:#64748b;margin-top:2px;}
+  .logo-box{width:56px;height:56px;background:#f1f5f9;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+  .info-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;}
+  .info-box h4{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+  .info-row{display:flex;gap:8px;margin-bottom:4px;font-size:12px;}
+  .info-label{color:#64748b;min-width:80px;flex-shrink:0;}
+  .info-val{font-weight:600;color:#1e293b;}
+  table.items{width:100%;border-collapse:collapse;margin-bottom:16px;}
+  table.items thead tr{background:#1e293b;color:#fff;}
+  table.items thead th{padding:9px 12px;font-size:12px;font-weight:600;}
+  table.items tbody tr:nth-child(even){background:#f8fafc;}
+  table.items tbody td{padding:8px 12px;font-size:12px;border-bottom:1px solid #e2e8f0;vertical-align:top;}
+  .totals{display:flex;justify-content:flex-end;margin-bottom:20px;}
+  .totals-box{min-width:260px;}
+  .total-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid #f1f5f9;}
+  .total-final{display:flex;justify-content:space-between;padding:10px 14px;background:#1e293b;color:#fff;border-radius:8px;font-size:15px;font-weight:700;margin-top:6px;}
+  .footer{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;}
+  .sig-box{text-align:center;}
+  .sig-line{border-bottom:1px dashed #94a3b8;margin:32px 12px 6px;}
+  .sig-img{max-height:60px;max-width:140px;margin:0 auto 4px;display:block;}
+  .sig-name{font-size:12px;font-weight:600;color:#475569;}
+  .sig-label{font-size:11px;color:#94a3b8;margin-top:2px;}
+  .remarks{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;}
+  @media print{body{padding:0;}@page{margin:16mm;size:A4;}}
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="doc-title">${typeInfo.label}</div>
+    <div class="doc-sub">${typeInfo.labelEn} (ต้นฉบับ / original)</div>
+  </div>
+  <div class="logo-box">${biz?.icon || '🏪'}</div>
+</div>
+
+<div class="info-grid">
+  <div class="info-box">
+    <h4>ลูกค้า / Customer</h4>
+    <div class="info-row"><span class="info-label">ชื่อ</span><span class="info-val">${doc.customer_name || '-'}</span></div>
+    <div class="info-row"><span class="info-label">ที่อยู่</span><span class="info-val">${doc.customer_address || '-'}</span></div>
+    <div class="info-row"><span class="info-label">เลขภาษี</span><span class="info-val">${doc.customer_tax_id || '-'}</span></div>
+    <div class="info-row"><span class="info-label">โทร</span><span class="info-val">${doc.customer_phone || '-'}</span></div>
+    <div class="info-row"><span class="info-label">อีเมล</span><span class="info-val">${doc.customer_email || '-'}</span></div>
+  </div>
+  <div class="info-box">
+    <h4>รายละเอียดเอกสาร</h4>
+    <div class="info-row"><span class="info-label">เลขที่</span><span class="info-val">${doc.doc_number}</span></div>
+    <div class="info-row"><span class="info-label">วันที่</span><span class="info-val">${doc.issue_date || '-'}</span></div>
+    ${doc.valid_date ? `<div class="info-row"><span class="info-label">ใช้ได้ถึง</span><span class="info-val">${doc.valid_date}</span></div>` : ''}
+    ${doc.ref_doc ? `<div class="info-row"><span class="info-label">อ้างอิง</span><span class="info-val">${doc.ref_doc}</span></div>` : ''}
+    <div class="info-row"><span class="info-label">ผู้ออก</span><span class="info-val">${issuerName}</span></div>
+    <div class="info-row"><span class="info-label">เลขภาษีผู้ออก</span><span class="info-val">${issuerTaxId}</span></div>
+  </div>
+</div>
+
+<table class="items">
+  <thead>
+    <tr>
+      <th style="width:40px;text-align:center">รหัส</th>
+      <th style="text-align:left">คำอธิบาย</th>
+      <th style="width:70px;text-align:center">จำนวน</th>
+      <th style="width:60px;text-align:center">หน่วย</th>
+      <th style="width:100px;text-align:right">ราคา/หน่วย</th>
+      <th style="width:110px;text-align:right">มูลค่า</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${items.map((item, i) => `
+    <tr>
+      <td style="text-align:center">${i + 1}</td>
+      <td>${item.description || ''}</td>
+      <td style="text-align:center">${item.qty || 1}</td>
+      <td style="text-align:center">${item.unit || 'หน่วย'}</td>
+      <td style="text-align:right">${fmt(item.unit_price)}</td>
+      <td style="text-align:right;font-weight:600">${fmt((item.qty || 1) * (item.unit_price || 0))}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>
+
+${doc.remarks ? `<div class="remarks"><strong>หมายเหตุ:</strong> ${doc.remarks}</div>` : ''}
+
+<div class="totals">
+  <div class="totals-box">
+    <div class="total-row"><span>รวมเป็นเงิน</span><span>฿${fmt(doc.subtotal)}</span></div>
+    ${Number(doc.discount) > 0 ? `<div class="total-row"><span>ส่วนลด</span><span>-฿${fmt(doc.discount)}</span></div>` : ''}
+    <div class="total-final"><span>จำนวนเงินรวมทั้งสิ้น</span><span>฿${fmt(doc.total)}</span></div>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="sig-box">
+    <div class="sig-line"></div>
+    <div class="sig-name">อนุมัติโดย / Approved by</div>
+    <div class="sig-label">วันที่ / Date ................................</div>
+  </div>
+  <div class="sig-box">
+    ${sig ? `<img class="sig-img" src="${sig}" alt="signature"/>` : '<div class="sig-line"></div>'}
+    <div class="sig-name">จัดเตรียมโดย / Prepared by</div>
+    <div class="sig-label">วันที่ / Date ${doc.issue_date || ''}</div>
+  </div>
+  <div class="sig-box">
+    <div class="sig-line"></div>
+    <div class="sig-name">${doc.doc_type === 'RC' ? 'ผู้รับเงิน / Received by' : 'ผู้รับใบแจ้งหนี้ / Accepted by'}</div>
+    <div class="sig-label">วันที่ / Date ................................</div>
+  </div>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { win.focus(); win.print(); };
+};
+
+// ── DocumentForm Component ──
+const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc }) => {
+  const [bizId, setBizId] = useState(editDoc?.business_id || (businesses[0]?.id || ''));
+  const [docType, setDocType] = useState(editDoc?.doc_type || 'QO');
+  const [docNumber, setDocNumber] = useState(editDoc?.doc_number || '');
+  const [customerName, setCustomerName] = useState(editDoc?.customer_name || '');
+  const [customerAddr, setCustomerAddr] = useState(editDoc?.customer_address || '');
+  const [customerTax, setCustomerTax] = useState(editDoc?.customer_tax_id || '');
+  const [customerEmail, setCustomerEmail] = useState(editDoc?.customer_email || '');
+  const [customerPhone, setCustomerPhone] = useState(editDoc?.customer_phone || '');
+  const [issueDate, setIssueDate] = useState(editDoc?.issue_date || todayTH());
+  const [validDate, setValidDate] = useState(editDoc?.valid_date || '');
+  const [refDoc, setRefDoc] = useState(editDoc?.ref_doc || '');
+  const [items, setItems] = useState(() => {
+    if (editDoc?.items) return Array.isArray(editDoc.items) ? editDoc.items : JSON.parse(editDoc.items);
+    return [{ description: '', qty: 1, unit: 'หน่วย', unit_price: 0 }];
+  });
+  const [discount, setDiscount] = useState(editDoc?.discount || 0);
+  const [remarks, setRemarks] = useState(editDoc?.remarks || '');
+  const [saving, setSaving] = useState(false);
+  const [loadingNum, setLoadingNum] = useState(!editDoc);
+
+  const typeInfo = DOC_TYPES.find(t => t.id === docType);
+  const subtotal = items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.unit_price) || 0), 0);
+  const total = subtotal - (Number(discount) || 0);
+
+  useEffect(() => {
+    if (!editDoc && bizId && docType) {
+      setLoadingNum(true);
+      documentAPI.nextNumber(bizId, docType)
+        .then(r => { setDocNumber(r.doc_number); setLoadingNum(false); })
+        .catch(() => setLoadingNum(false));
+    }
+  }, [bizId, docType]);
+
+  const addItem = () => setItems(prev => [...prev, { description: '', qty: 1, unit: 'หน่วย', unit_price: 0 }]);
+  const removeItem = (i) => setItems(prev => prev.filter((_, idx) => idx !== i));
+  const updateItem = (i, field, val) => setItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
+
+  const handleSave = async () => {
+    if (!customerName.trim()) return alert('กรุณากรอกชื่อลูกค้า');
+    if (items.length === 0) return alert('กรุณาเพิ่มรายการอย่างน้อย 1 รายการ');
+    setSaving(true);
+    const data = {
+      business_id: bizId, doc_type: docType, customer_name: customerName,
+      customer_address: customerAddr, customer_tax_id: customerTax,
+      customer_email: customerEmail, customer_phone: customerPhone,
+      issue_date: issueDate, valid_date: validDate || null, ref_doc: refDoc || null,
+      items, subtotal, discount: Number(discount) || 0, total,
+      remarks, created_by: user?.id || null,
+    };
+    try {
+      let saved;
+      if (editDoc) saved = await documentAPI.update(editDoc.id, { ...data, status: editDoc.status });
+      else saved = await documentAPI.create(data);
+      onSaved(saved, !editDoc);
+    } catch (err) { alert('เกิดข้อผิดพลาด: ' + err.message); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+
+        {/* ─ Section 1: ประเภท + สาขา ─ */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+            <h3 className="font-bold text-slate-800">ประเภทเอกสารและสาขา</h3>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {DOC_TYPES.map(t => (
+              <button key={t.id} type="button" onClick={() => !editDoc && setDocType(t.id)} disabled={!!editDoc}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all text-center ${docType === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'} ${editDoc ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">สาขา <span className="text-rose-500">*</span></label>
+              <select value={bizId} onChange={e => setBizId(Number(e.target.value))} disabled={!!editDoc}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                {businesses.filter(b => b.status === 'Active').map(b => (
+                  <option key={b.id} value={b.id}>{b.icon} {b.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">เลขที่เอกสาร</label>
+              <div className="relative">
+                <input type="text" value={loadingNum ? 'กำลังสร้างเลข...' : docNumber} readOnly
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 font-mono text-sm outline-none" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ─ Section 2: ข้อมูลลูกค้า ─ */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+            <h3 className="font-bold text-slate-800">ข้อมูลลูกค้า</h3>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">ชื่อ/บริษัท <span className="text-rose-500">*</span></label>
+              <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="เช่น บริษัท ABC จำกัด" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">ที่อยู่</label>
+              <textarea value={customerAddr} onChange={e => setCustomerAddr(e.target.value)} rows={2}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                placeholder="ที่อยู่ลูกค้า" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">เลขภาษี</label>
+                <input type="text" value={customerTax} onChange={e => setCustomerTax(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="13 หลัก" maxLength={13} />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">โทร</label>
+                <input type="text" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="08X-XXX-XXXX" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">อีเมล</label>
+              <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="email@example.com" />
+            </div>
+          </div>
+        </section>
+
+        {/* ─ Section 3: วันที่ ─ */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+            <h3 className="font-bold text-slate-800">วันที่และอ้างอิง</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">วันที่ออกเอกสาร</label>
+              <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">ใช้ได้ถึง</label>
+              <input type="date" value={validDate} onChange={e => setValidDate(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">เอกสารอ้างอิง</label>
+              <input type="text" value={refDoc} onChange={e => setRefDoc(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="เช่น QO-2568... (ถ้ามี)" />
+            </div>
+          </div>
+        </section>
+
+        {/* ─ Section 4: รายการสินค้า/บริการ ─ */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span>
+              <h3 className="font-bold text-slate-800">รายการสินค้า/บริการ</h3>
+            </div>
+            <button type="button" onClick={addItem}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 border border-blue-100">
+              <Plus size={13} /> เพิ่มรายการ
+            </button>
+          </div>
+          <div className="space-y-3">
+            {items.map((item, i) => (
+              <div key={i} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold text-slate-500">รายการที่ {i + 1}</span>
+                  {items.length > 1 && (
+                    <button type="button" onClick={() => removeItem(i)} className="text-rose-400 hover:text-rose-600 p-1">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <textarea value={item.description} onChange={e => updateItem(i, 'description', e.target.value)}
+                    rows={2} placeholder="คำอธิบายสินค้า/บริการ"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none" />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs text-slate-500 font-medium">จำนวน</label>
+                      <input type="number" min="1" value={item.qty} onChange={e => updateItem(i, 'qty', e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 font-medium">หน่วย</label>
+                      <input type="text" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        placeholder="หน่วย" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 font-medium">ราคา/หน่วย</label>
+                      <input type="number" min="0" value={item.unit_price} onChange={e => updateItem(i, 'unit_price', e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <span className="text-sm font-bold text-slate-700">= ฿{fmt((item.qty || 0) * (item.unit_price || 0))}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Totals */}
+          <div className="mt-4 bg-white rounded-xl border border-slate-200 p-4 space-y-2">
+            <div className="flex justify-between text-sm text-slate-600">
+              <span>รวมเป็นเงิน</span><span className="font-bold">฿{fmt(subtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm text-slate-600">
+              <span>ส่วนลด</span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400">฿</span>
+                <input type="number" min="0" value={discount} onChange={e => setDiscount(e.target.value)}
+                  className="w-28 px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-right" />
+              </div>
+            </div>
+            <div className="flex justify-between text-base font-black text-slate-800 pt-2 border-t border-slate-200">
+              <span>จำนวนเงินรวมทั้งสิ้น</span><span>฿{fmt(total)}</span>
+            </div>
+          </div>
+        </section>
+
+        {/* ─ Section 5: หมายเหตุ ─ */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">5</span>
+            <h3 className="font-bold text-slate-800">หมายเหตุ</h3>
+          </div>
+          <textarea value={remarks} onChange={e => setRemarks(e.target.value)} rows={3}
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+            placeholder="หมายเหตุ/เงื่อนไขการชำระเงิน (ถ้ามี)" />
+        </section>
+      </div>
+
+      {/* ─ Sticky footer ─ */}
+      <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4 flex gap-3">
+        <button type="button" onClick={onClose}
+          className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50">
+          ยกเลิก
+        </button>
+        <button type="button" onClick={handleSave} disabled={saving}
+          className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+          {saving ? <><Loader2 size={16} className="animate-spin" /> กำลังบันทึก...</> : <><Check size={16} /> บันทึก</>}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── DocumentSettings Component ──
+const DocumentSettings = ({ businesses, onClose }) => {
+  const [bizId, setBizId] = useState(businesses[0]?.id || '');
+  const [settings, setSettings] = useState({});
+  const [sigPreview, setSigPreview] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!bizId) return;
+    documentAPI.getSettings(bizId).then(rows => {
+      const map = {};
+      DOC_TYPES.forEach(t => {
+        const row = rows.find(r => r.doc_type === t.id);
+        map[t.id] = { prefix: row?.prefix || t.id, running_number: row?.running_number || 1 };
+        if (row?.signature_image) setSigPreview(p => ({ ...p, [t.id]: row.signature_image }));
+      });
+      setSettings(map);
+    }).catch(() => {});
+  }, [bizId]);
+
+  const handleSigUpload = (docType, e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const b64 = ev.target.result;
+      setSigPreview(p => ({ ...p, [docType]: b64 }));
+      setSettings(p => ({ ...p, [docType]: { ...p[docType], signature_image: b64 } }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      for (const t of DOC_TYPES) {
+        const s = settings[t.id];
+        if (!s) continue;
+        await documentAPI.saveSettings({
+          business_id: bizId, doc_type: t.id,
+          prefix: s.prefix, running_number: Number(s.running_number) || 1,
+          signature_image: s.signature_image || sigPreview[t.id] || null,
+        });
+      }
+      onClose(true);
+    } catch (err) { alert('เกิดข้อผิดพลาด: ' + err.message); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-1.5">เลือกสาขา</label>
+          <select value={bizId} onChange={e => setBizId(Number(e.target.value))}
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+            {businesses.filter(b => b.status === 'Active').map(b => (
+              <option key={b.id} value={b.id}>{b.icon} {b.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {DOC_TYPES.map(t => (
+          <div key={t.id} className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+            <h4 className="font-bold text-slate-800 mb-4">{t.icon} {t.label}</h4>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">ตัวย่อเอกสาร (Prefix)</label>
+                <input type="text" value={settings[t.id]?.prefix || t.id}
+                  onChange={e => setSettings(p => ({ ...p, [t.id]: { ...p[t.id], prefix: e.target.value.toUpperCase() } }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-mono font-bold"
+                  placeholder={t.id} maxLength={10} />
+                <p className="text-xs text-slate-400 mt-1">ตัวอย่าง: {settings[t.id]?.prefix || t.id}-256803{String(settings[t.id]?.running_number || 1).padStart(5,'0')}</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">เลขรันเริ่มต้น</label>
+                <input type="number" min="1" value={settings[t.id]?.running_number || 1}
+                  onChange={e => setSettings(p => ({ ...p, [t.id]: { ...p[t.id], running_number: e.target.value } }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+            </div>
+            {/* Signature */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-2">ลายเซ็นอิเล็กทรอนิกส์</label>
+              <div className="flex items-center gap-3">
+                {sigPreview[t.id] ? (
+                  <div className="relative">
+                    <img src={sigPreview[t.id]} alt="sig" className="h-16 max-w-[160px] object-contain bg-white border border-slate-200 rounded-xl p-2" />
+                    <button onClick={() => { setSigPreview(p => ({ ...p, [t.id]: null })); setSettings(p => ({ ...p, [t.id]: { ...p[t.id], signature_image: null } })); }}
+                      className="absolute -top-2 -right-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-xs">×</button>
+                  </div>
+                ) : (
+                  <div className="w-32 h-16 border-2 border-dashed border-slate-300 rounded-xl flex items-center justify-center text-slate-400 text-xs">ยังไม่มีลายเซ็น</div>
+                )}
+                <label className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer">
+                  <Upload size={14} /> อัปโหลด
+                  <input type="file" accept="image/*" className="hidden" onChange={e => handleSigUpload(t.id, e)} />
+                </label>
+              </div>
+              <p className="text-xs text-slate-400 mt-1.5">รองรับ PNG, JPG ขนาดไม่เกิน 2MB (พื้นหลังโปร่งใส PNG ดีที่สุด)</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4 flex gap-3">
+        <button onClick={() => onClose(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50">ยกเลิก</button>
+        <button onClick={handleSave} disabled={saving}
+          className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+          {saving ? <><Loader2 size={16} className="animate-spin" /> บันทึก...</> : <><Check size={16} /> บันทึกการตั้งค่า</>}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── Documents (Main Page) ──
+const Documents = ({ businesses, user, onSuccess }) => {
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterBiz, setFilterBiz] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [search, setSearch] = useState('');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [editDoc, setEditDoc] = useState(null);
+  const [printLoading, setPrintLoading] = useState(null);
+
+  const load = () => {
+    setLoading(true);
+    const params = {};
+    if (filterBiz) params.business_id = filterBiz;
+    if (filterType) params.doc_type = filterType;
+    if (filterStatus) params.status = filterStatus;
+    documentAPI.getAll(params)
+      .then(data => setDocs(Array.isArray(data) ? data : []))
+      .catch(() => setDocs([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [filterBiz, filterType, filterStatus]);
+
+  const handlePrint = async (doc) => {
+    setPrintLoading(doc.id);
+    try {
+      const full = await documentAPI.getOne(doc.id);
+      const biz = businesses.find(b => b.id === full.business_id);
+      const settings = await documentAPI.getSettings(full.business_id);
+      const sigSettings = settings.find(s => s.doc_type === full.doc_type);
+      generatePDF(full, biz, sigSettings);
+    } catch (err) { alert('เกิดข้อผิดพลาด: ' + err.message); }
+    finally { setPrintLoading(null); }
+  };
+
+  const handleDelete = async (doc) => {
+    if (!confirm(`ลบเอกสาร ${doc.doc_number} หรือไม่?`)) return;
+    await documentAPI.delete(doc.id).catch(() => {});
+    setDocs(prev => prev.filter(d => d.id !== doc.id));
+    onSuccess('ลบเอกสารสำเร็จ');
+  };
+
+  const handleStatusChange = async (doc, status) => {
+    await documentAPI.updateStatus(doc.id, status).catch(() => {});
+    setDocs(prev => prev.map(d => d.id === doc.id ? { ...d, status } : d));
+  };
+
+  const filtered = docs.filter(d =>
+    !search || d.doc_number?.toLowerCase().includes(search.toLowerCase()) ||
+    d.customer_name?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-5 max-w-5xl mx-auto">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">เอกสารทางธุรกิจ</h2>
+          <p className="text-slate-500 text-sm mt-1">ใบเสนอราคา · ใบแจ้งหนี้ · ใบเสร็จ</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 text-sm font-bold">
+            <Settings size={16} /> ตั้งค่า
+          </button>
+          <button onClick={() => { setEditDoc(null); setIsFormOpen(true); }}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm font-bold shadow-md">
+            <Plus size={16} /> สร้างเอกสาร
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+        <div className="relative">
+          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาเลขที่เอกสาร, ชื่อลูกค้า..."
+            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <select value={filterBiz} onChange={e => setFilterBiz(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+            <option value="">ทุกสาขา</option>
+            {businesses.filter(b => b.status === 'Active').map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+          <select value={filterType} onChange={e => setFilterType(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+            <option value="">ทุกประเภท</option>
+            {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+            <option value="">ทุกสถานะ</option>
+            {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Document list */}
+      {loading ? <div className="flex justify-center py-12"><Spinner /></div> : (
+        filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+            <FileText size={48} className="mx-auto mb-3 opacity-30" />
+            <p>ยังไม่มีเอกสาร กด "สร้างเอกสาร" เพื่อเริ่มต้น</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map(doc => {
+              const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type);
+              const statusInfo = DOC_STATUS[doc.status] || DOC_STATUS.draft;
+              return (
+                <div key={doc.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-lg">{typeInfo?.icon}</div>
+                      <div>
+                        <div className="font-black text-slate-800 font-mono">{doc.doc_number}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{doc.business_name} · {doc.issue_date}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
+                      <span className="text-base font-black text-slate-800">฿{fmt(doc.total)}</span>
+                    </div>
+                  </div>
+                  <div className="text-sm text-slate-600 mb-3">
+                    <span className="font-medium">{doc.customer_name || '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 pt-3 border-t border-slate-100 flex-wrap">
+                    {/* Status quick change */}
+                    <select value={doc.status} onChange={e => handleStatusChange(doc, e.target.value)}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold bg-white outline-none">
+                      {Object.entries(DOC_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                    <button onClick={() => handlePrint(doc)} disabled={printLoading === doc.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50">
+                      {printLoading === doc.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
+                    </button>
+                    <button onClick={() => { setEditDoc(doc); setIsFormOpen(true); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100">
+                      <Edit2 size={12} /> แก้ไข
+                    </button>
+                    <button onClick={() => handleDelete(doc)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold border border-rose-100 hover:bg-rose-100">
+                      <Trash2 size={12} /> ลบ
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {/* Document Form Drawer */}
+      <Drawer isOpen={isFormOpen} onClose={() => setIsFormOpen(false)}
+        title={editDoc ? `แก้ไข ${editDoc.doc_number}` : 'สร้างเอกสารใหม่'}
+        description={editDoc ? 'แก้ไขรายละเอียดเอกสาร' : 'กรอกข้อมูลเพื่อสร้างเอกสาร'}>
+        {isFormOpen && (
+          <DocumentForm businesses={businesses} user={user} editDoc={editDoc}
+            onClose={() => setIsFormOpen(false)}
+            onSaved={(saved, isNew) => {
+              if (isNew) setDocs(prev => [saved, ...prev]);
+              else setDocs(prev => prev.map(d => d.id === saved.id ? { ...d, ...saved } : d));
+              setIsFormOpen(false);
+              onSuccess(isNew ? `สร้าง ${saved.doc_number} สำเร็จ ✅` : 'อัปเดตเอกสารสำเร็จ ✅');
+            }} />
+        )}
+      </Drawer>
+
+      {/* Settings Drawer */}
+      <Drawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}
+        title="ตั้งค่าเอกสาร" description="ตั้งค่าตัวย่อ เลขรัน และลายเซ็น">
+        {isSettingsOpen && (
+          <DocumentSettings businesses={businesses}
+            onClose={(saved) => { setIsSettingsOpen(false); if (saved) onSuccess('บันทึกการตั้งค่าสำเร็จ ✅'); }} />
+        )}
+      </Drawer>
+    </div>
+  );
+};
+
 // ─── MAIN APP ───
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -2240,6 +2954,7 @@ export default function App() {
     { id: 'income', label: 'รับเงิน', icon: TrendingUp, color: 'text-emerald-400' },
     { id: 'expense', label: 'จ่ายเงิน', icon: TrendingDown, color: 'text-rose-400' },
     { id: 'transactions', label: 'รายการธุรกรรม', icon: List },
+    { id: 'documents', label: 'เอกสาร', icon: FilePlus, color: 'text-blue-400' },
     { id: 'reports', label: 'รายงาน P&L', icon: FileText },
     { id: 'businesses', label: 'จัดการธุรกิจ', icon: Building2 },
     { id: 'users', label: 'จัดการสิทธิ์', icon: Users },
@@ -2254,6 +2969,7 @@ export default function App() {
       case 'reports': return <Reports businesses={businesses} />;
       case 'businesses': return <BusinessManagement businesses={businesses} setBusinesses={setBusinesses} onSuccess={showToast} />;
       case 'users': return <UserManagement businesses={businesses} onSuccess={showToast} />;
+      case 'documents': return <Documents businesses={businesses} user={user} onSuccess={showToast} />;
       default: return <Dashboard setCurrentView={setCurrentView} />;
     }
   };

@@ -60,3 +60,15 @@ export const reportAPI = {
     return request(`/reports/pl${q ? '?' + q : ''}`);
   },
 };
+
+export const documentAPI = {
+  getSettings: (bizId) => request(`/document-settings/${bizId}`),
+  saveSettings: (data) => request('/document-settings', { method: 'POST', body: JSON.stringify(data) }),
+  nextNumber: (bizId, docType) => request(`/documents/next-number?business_id=${bizId}&doc_type=${docType}`),
+  getAll: (params = {}) => { const q = new URLSearchParams(params).toString(); return request(`/documents${q ? '?' + q : ''}`); },
+  getOne: (id) => request(`/documents/${id}`),
+  create: (data) => request('/documents', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/documents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  updateStatus: (id, status) => request(`/documents/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  delete: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
+};
