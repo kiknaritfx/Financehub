@@ -254,6 +254,19 @@ const FEATURE_LIST = [
 ];
 
 // ─── SHARED COMPONENTS ───
+const Tooltip = ({ label, children }) => (
+  <div className="relative group/tip inline-flex">
+    {children}
+    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+      opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150">
+      <div className="bg-slate-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+        {label}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+      </div>
+    </div>
+  </div>
+);
+
 const Badge = ({ children, type = 'default', className = '', onClick }) => {
   const colors = { income: 'bg-emerald-100 text-emerald-700', expense: 'bg-rose-100 text-rose-700', primary: 'bg-blue-100 text-blue-700', warning: 'bg-amber-100 text-amber-700', audit: 'bg-purple-100 text-purple-700', manager: 'bg-purple-100 text-purple-700', staff: 'bg-blue-100 text-blue-700', owner: 'bg-amber-100 text-amber-800', default: 'bg-slate-100 text-slate-700' };
   return <span onClick={onClick} className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${colors[type]} ${className} ${onClick ? 'cursor-pointer' : ''}`}>{children}</span>;
@@ -1553,11 +1566,17 @@ const Transactions = ({ businesses, user }) => {
     const dateRange = getTxnDateRange();
     let matchDate = true;
     if (dateRange && (dateRange.start || dateRange.end)) {
+      // ใช้ date (วันที่เลือกตอนลงข้อมูล) เป็นหลัก
       const txDate = (t.date || t.created_at || '').slice(0, 10);
       if (dateRange.start && txDate < dateRange.start) matchDate = false;
       if (dateRange.end && txDate > dateRange.end) matchDate = false;
     }
     return matchSearch && matchBiz && matchType && matchDate;
+  // เรียงจากวันที่-เวลาที่เลือกตอนลงข้อมูล ล่าสุดก่อน
+  }).sort((a, b) => {
+    const da = (a.date || a.created_at || '');
+    const db = (b.date || b.created_at || '');
+    return db.localeCompare(da);
   });
 
   const auditIcon = (a) => a === 'EDIT' ? '✏️' : a === 'DELETE' ? '🗑' : '➕';
@@ -1645,8 +1664,8 @@ const Transactions = ({ businesses, user }) => {
                         <tr key={tx.id} className="hover:bg-blue-50/30 transition-colors group">
                           {/* วันที่ */}
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="font-medium text-slate-800">{(tx.created_at || tx.date || '').split('T')[0]}</div>
-                            <div className="text-xs text-slate-400">{(tx.created_at || tx.date || '').split('T')[1]?.slice(0,5)}</div>
+                            <div className="font-medium text-slate-800">{(tx.date || tx.created_at || '').split('T')[0]}</div>
+                            <div className="text-xs text-slate-400">{(tx.date || tx.created_at || '').split('T')[1]?.slice(0,5)}</div>
                           </td>
                           {/* เลขที่ */}
                           <td className="px-4 py-3 whitespace-nowrap">
@@ -1674,33 +1693,44 @@ const Transactions = ({ businesses, user }) => {
                           {/* Actions */}
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-center gap-1">
-                              <button onClick={() => openImages(tx)} title="รูปหลักฐาน"
-                                className={`p-1.5 rounded-lg transition-all ${tx.image_count > 0 ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'}`}>
-                                <ImageIcon size={15} />
-                                {tx.image_count > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{tx.image_count}</span>}
-                              </button>
-                              <button onClick={() => openAudit(tx)} title="ประวัติ"
-                                className="p-1.5 rounded-lg text-purple-500 hover:bg-purple-50 transition-all">
-                                <History size={15} />
-                              </button>
-                              <button onClick={() => openEdit(tx)} title="แก้ไข"
-                                className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-all">
-                                <Edit2 size={15} />
-                              </button>
-                              <button onClick={() => setDeleteModal(tx)} title="ลบ"
-                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-all">
-                                <Trash2 size={15} />
-                              </button>
+                              <Tooltip label={tx.image_count > 0 ? `รูปหลักฐาน (${tx.image_count} รูป)` : 'รูปหลักฐาน'}>
+                                <button onClick={() => openImages(tx)}
+                                  className={`p-1.5 rounded-lg transition-all ${tx.image_count > 0 ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'}`}>
+                                  <ImageIcon size={15} />
+                                </button>
+                              </Tooltip>
+                              <Tooltip label="ประวัติการแก้ไข">
+                                <button onClick={() => openAudit(tx)}
+                                  className="p-1.5 rounded-lg text-purple-500 hover:bg-purple-50 transition-all">
+                                  <History size={15} />
+                                </button>
+                              </Tooltip>
+                              <Tooltip label="แก้ไขรายการ">
+                                <button onClick={() => openEdit(tx)}
+                                  className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-all">
+                                  <Edit2 size={15} />
+                                </button>
+                              </Tooltip>
+                              <Tooltip label="ลบรายการ">
+                                <button onClick={() => setDeleteModal(tx)}
+                                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-all">
+                                  <Trash2 size={15} />
+                                </button>
+                              </Tooltip>
                               {tx.type === 'Expense' && !(tx.note || '').includes('[ใบกำกับภาษีฉบับเต็ม]') && (
                                 pvIssued ? (
-                                  <span className="p-1.5 text-slate-300 cursor-not-allowed" title="ออกใบสำคัญจ่ายแล้ว">
-                                    <Check size={15} />
-                                  </span>
+                                  <Tooltip label="ออกใบสำคัญจ่ายแล้ว">
+                                    <span className="p-1.5 text-slate-300 cursor-not-allowed">
+                                      <Check size={15} />
+                                    </span>
+                                  </Tooltip>
                                 ) : (
-                                  <button onClick={() => setPvModal(tx)} title="ออกใบสำคัญจ่าย"
-                                    className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-all">
-                                    <FileEdit size={15} />
-                                  </button>
+                                  <Tooltip label="ออกใบสำคัญจ่าย">
+                                    <button onClick={() => setPvModal(tx)}
+                                      className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-all">
+                                      <FileEdit size={15} />
+                                    </button>
+                                  </Tooltip>
                                 )
                               )}
                             </div>
@@ -1745,9 +1775,9 @@ const Transactions = ({ businesses, user }) => {
                           <div className="font-semibold text-slate-800 text-sm leading-snug truncate">{tx.category}</div>
                           {/* Meta */}
                           <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-400 flex-wrap">
-                            <span>{(tx.created_at || tx.date || '').split('T')[0]}</span>
+                            <span>{(tx.date || tx.created_at || '').split('T')[0]}</span>
                             <span>·</span>
-                            <span>{(tx.created_at || tx.date || '').split('T')[1]?.slice(0,5)}</span>
+                            <span>{(tx.date || tx.created_at || '').split('T')[1]?.slice(0,5)}</span>
                             <span>·</span>
                             <span className="text-slate-500 font-medium">{tx.business_name}</span>
                             {tx.created_by_name && <><span>·</span><span>{tx.created_by_name}</span></>}
