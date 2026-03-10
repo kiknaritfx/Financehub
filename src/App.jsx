@@ -1414,6 +1414,20 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
   );
 };
 
+// ─── SHARED CATEGORY DEFAULTS ───
+const DEFAULT_INCOME_CATS = [
+  'ยอดขายสินค้า (Sales)', 'รายได้จากการบริการ (Services)',
+  'รายได้ค่าเช่า (Rental Income)', 'ดอกเบี้ยรับ (Interest Income)',
+  'รายได้อื่นๆ (Other Income)',
+];
+const DEFAULT_EXPENSE_CATS = [
+  'ต้นทุนขาย/วัตถุดิบ (COGS)', 'เงินเดือนและค่าจ้าง (Salary)',
+  'ค่าเช่าสถานที่ (Rent)', 'ค่าสาธารณูปโภค (Utilities)',
+  'ค่าวัสดุสิ้นเปลือง (Supplies)', 'ค่าโฆษณาและการตลาด (Marketing)',
+  'ค่าซ่อมบำรุง (Maintenance)', 'ค่าขนส่ง (Transportation)',
+  'ค่าประกันภัย (Insurance)', 'ค่าเสื่อมราคา (Depreciation)',
+];
+
 // ─── TRANSACTIONS ───
 const Transactions = ({ businesses, user }) => {
   const [txns, setTxns] = useState([]);
@@ -1602,70 +1616,201 @@ const Transactions = ({ businesses, user }) => {
       </div>
 
       {loading ? <div className="flex justify-center py-12"><Spinner /></div> : (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <>
           {filtered.length === 0 ? (
-            <div className="p-8 text-center text-slate-400">ไม่พบข้อมูล</div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+              <List size={48} className="mx-auto mb-3 opacity-20" />
+              <p className="font-medium">ไม่พบข้อมูล</p>
+            </div>
           ) : (
-            <div className="divide-y divide-slate-100">
-              {filtered.map(tx => (
-                <div key={tx.id} className="p-4 hover:bg-blue-50/30 transition-colors">
-                  {/* Row 1: วันที่ + จำนวนเงิน */}
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <div className="font-bold text-slate-800 text-sm">{(tx.created_at || tx.date || '').split('T')[0]}</div>
-                      <div className="text-slate-400 text-xs">{(tx.created_at || tx.date || '').split('T')[1]?.slice(0,5)} · {tx.business_name || '—'}</div>
-                    </div>
-                    <div className={`text-base font-black ${tx.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {tx.type === 'Income' ? '+' : '-'}฿{fmt(tx.amount)}
-                    </div>
-                  </div>
-                  {/* Row 2: Badge + category + edited */}
-                  <div className="flex items-center gap-2 flex-wrap mb-3">
-                    <Badge type={tx.type === 'Income' ? 'income' : 'expense'}>{tx.type === 'Income' ? 'รายรับ' : 'รายจ่าย'}</Badge>
-                    <span className="text-sm text-slate-700">{tx.category}</span>
-                    {tx.is_edited && <Badge type="audit">✏️ Edited</Badge>}
-                    {tx.created_by_name && <span className="text-xs text-slate-400">โดย {tx.created_by_name}</span>}
-                  </div>
-                  {/* Row 3: action buttons */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={() => openImages(tx)}
-                      className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${tx.image_count > 0 ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                      <ImageIcon size={13} />
-                      {tx.image_count > 0 ? `${tx.image_count} รูป` : 'รูป'}
-                    </button>
-                    <button onClick={() => openAudit(tx)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg text-xs font-bold border border-purple-100">
-                      <History size={13} /> ประวัติ
-                    </button>
-                    <button onClick={() => openEdit(tx)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg text-xs font-bold border border-blue-100">
-                      <Edit2 size={13} /> แก้ไข
-                    </button>
-                    <button onClick={() => setDeleteModal(tx)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg text-xs font-bold border border-rose-100">
-                      <Trash2 size={13} /> ลบ
-                    </button>
-                    {tx.type === 'Expense' && !(tx.note || '').includes('[ใบกำกับภาษีฉบับเต็ม]') && (
-                      issuedPvTxIds.has(String(tx.id)) ? (
-                        <span className="flex items-center gap-1.5 px-3 py-1.5 text-slate-400 bg-slate-50 rounded-lg text-xs font-bold border border-slate-200 cursor-not-allowed" title="ออกใบสำคัญจ่ายแล้ว — ลบใบเดิมก่อนเพื่อออกใหม่">
-                          <Check size={13} /> ออกใบสำคัญจ่ายแล้ว
-                        </span>
-                      ) : (
-                        <button onClick={() => setPvModal(tx)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg text-xs font-bold border border-amber-200">
-                          <FileEdit size={13} /> ออกใบสำคัญจ่าย
-                        </button>
-                      )
-                    )}
+            <>
+              {/* ── Desktop Table ── */}
+              <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">วันที่/เวลา</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">เลขที่</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">สาขา</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">ประเภท / หมวดหมู่</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">ผู้บันทึก</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">จำนวนเงิน</th>
+                      <th className="text-center px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">การดำเนินการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filtered.map(tx => {
+                      const pvIssued = issuedPvTxIds.has(String(tx.id));
+                      return (
+                        <tr key={tx.id} className="hover:bg-blue-50/30 transition-colors group">
+                          {/* วันที่ */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="font-medium text-slate-800">{(tx.created_at || tx.date || '').split('T')[0]}</div>
+                            <div className="text-xs text-slate-400">{(tx.created_at || tx.date || '').split('T')[1]?.slice(0,5)}</div>
+                          </td>
+                          {/* เลขที่ */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="font-mono text-xs text-slate-500">{tx.txn_id || '—'}</span>
+                            {tx.is_edited && <span className="ml-1.5 text-xs px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-md font-bold">✏️</span>}
+                          </td>
+                          {/* สาขา */}
+                          <td className="px-4 py-3">
+                            <span className="text-slate-700 font-medium">{tx.business_name || '—'}</span>
+                          </td>
+                          {/* ประเภท + หมวดหมู่ */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge type={tx.type === 'Income' ? 'income' : 'expense'}>{tx.type === 'Income' ? 'รายรับ' : 'รายจ่าย'}</Badge>
+                              <span className="text-slate-700">{tx.category}</span>
+                            </div>
+                            {tx.note && <div className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">{tx.note}</div>}
+                          </td>
+                          {/* ผู้บันทึก */}
+                          <td className="px-4 py-3 text-slate-500 text-xs">{tx.created_by_name || '—'}</td>
+                          {/* จำนวนเงิน */}
+                          <td className={`px-4 py-3 text-right font-black text-base whitespace-nowrap ${tx.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {tx.type === 'Income' ? '+' : '-'}฿{fmt(tx.amount)}
+                          </td>
+                          {/* Actions */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => openImages(tx)} title="รูปหลักฐาน"
+                                className={`p-1.5 rounded-lg transition-all ${tx.image_count > 0 ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'}`}>
+                                <ImageIcon size={15} />
+                                {tx.image_count > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{tx.image_count}</span>}
+                              </button>
+                              <button onClick={() => openAudit(tx)} title="ประวัติ"
+                                className="p-1.5 rounded-lg text-purple-500 hover:bg-purple-50 transition-all">
+                                <History size={15} />
+                              </button>
+                              <button onClick={() => openEdit(tx)} title="แก้ไข"
+                                className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-all">
+                                <Edit2 size={15} />
+                              </button>
+                              <button onClick={() => setDeleteModal(tx)} title="ลบ"
+                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-all">
+                                <Trash2 size={15} />
+                              </button>
+                              {tx.type === 'Expense' && !(tx.note || '').includes('[ใบกำกับภาษีฉบับเต็ม]') && (
+                                pvIssued ? (
+                                  <span className="p-1.5 text-slate-300 cursor-not-allowed" title="ออกใบสำคัญจ่ายแล้ว">
+                                    <Check size={15} />
+                                  </span>
+                                ) : (
+                                  <button onClick={() => setPvModal(tx)} title="ออกใบสำคัญจ่าย"
+                                    className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-all">
+                                    <FileEdit size={15} />
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="px-4 py-3 border-t border-slate-100 text-xs text-slate-400 bg-slate-50 flex items-center justify-between">
+                  <span>แสดง {filtered.length} จาก {txns.length} รายการ</span>
+                  <div className="flex gap-4 font-semibold">
+                    <span className="text-emerald-600">+฿{fmt(filtered.filter(t=>t.type==='Income').reduce((s,t)=>s+Number(t.amount),0))} รายรับ</span>
+                    <span className="text-rose-600">-฿{fmt(filtered.filter(t=>t.type==='Expense').reduce((s,t)=>s+Number(t.amount),0))} รายจ่าย</span>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+
+              {/* ── Mobile Cards ── */}
+              <div className="md:hidden space-y-3">
+                {filtered.map(tx => {
+                  const pvIssued = issuedPvTxIds.has(String(tx.id));
+                  const isIncome = tx.type === 'Income';
+                  return (
+                    <div key={tx.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                      {/* Card Top: สี accent strip + ข้อมูลหลัก */}
+                      <div className={`px-4 pt-3.5 pb-3 flex items-start justify-between gap-3 border-b-2 ${isIncome ? 'border-b-emerald-100' : 'border-b-rose-100'}`}>
+                        <div className="flex-1 min-w-0">
+                          {/* Badge + Edited */}
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${isIncome ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {isIncome ? '▲ รายรับ' : '▼ รายจ่าย'}
+                            </span>
+                            {tx.is_edited && <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-full font-bold">✏️</span>}
+                            {tx.image_count > 0 && (
+                              <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full font-medium flex items-center gap-0.5">
+                                <ImageIcon size={10} /> {tx.image_count}
+                              </span>
+                            )}
+                          </div>
+                          {/* Category */}
+                          <div className="font-semibold text-slate-800 text-sm leading-snug truncate">{tx.category}</div>
+                          {/* Meta */}
+                          <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-400 flex-wrap">
+                            <span>{(tx.created_at || tx.date || '').split('T')[0]}</span>
+                            <span>·</span>
+                            <span>{(tx.created_at || tx.date || '').split('T')[1]?.slice(0,5)}</span>
+                            <span>·</span>
+                            <span className="text-slate-500 font-medium">{tx.business_name}</span>
+                            {tx.created_by_name && <><span>·</span><span>{tx.created_by_name}</span></>}
+                          </div>
+                          {tx.note && <div className="mt-0.5 text-xs text-slate-400 truncate">{tx.note}</div>}
+                        </div>
+                        {/* Amount */}
+                        <div className={`text-xl font-black shrink-0 tabular-nums ${isIncome ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {isIncome ? '+' : '-'}฿{fmt(tx.amount)}
+                        </div>
+                      </div>
+
+                      {/* Card Bottom: Actions */}
+                      <div className="flex items-center gap-1 px-3 py-2.5">
+                        {/* Image */}
+                        <button onClick={() => openImages(tx)} title="รูปหลักฐาน"
+                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${tx.image_count > 0 ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                          <ImageIcon size={13} />
+                          <span>{tx.image_count > 0 ? tx.image_count : ''} รูป</span>
+                        </button>
+                        {/* History */}
+                        <button onClick={() => openAudit(tx)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 text-xs font-bold transition-all">
+                          <History size={13} />
+                          <span className="hidden xs:inline">ประวัติ</span>
+                        </button>
+                        {/* Edit */}
+                        <button onClick={() => openEdit(tx)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all">
+                          <Edit2 size={13} />
+                          <span>แก้ไข</span>
+                        </button>
+                        {/* Delete */}
+                        <button onClick={() => setDeleteModal(tx)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold transition-all">
+                          <Trash2 size={13} />
+                        </button>
+                        {/* PV button - spacer then push right */}
+                        {tx.type === 'Expense' && !(tx.note || '').includes('[ใบกำกับภาษีฉบับเต็ม]') && (
+                          <div className="ml-auto">
+                            {pvIssued ? (
+                              <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 text-slate-400 text-xs font-bold border border-slate-200">
+                                <Check size={12} /> ออกแล้ว
+                              </span>
+                            ) : (
+                              <button onClick={() => setPvModal(tx)}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-bold border border-amber-200 transition-all">
+                                <FileEdit size={12} /> ใบสำคัญจ่าย
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="text-center text-xs text-slate-400 py-2">
+                  แสดง {filtered.length} จาก {txns.length} รายการ
+                </div>
+              </div>
+            </>
           )}
-          <div className="p-4 border-t border-slate-200 text-sm text-slate-500 bg-slate-50">
-            แสดง {filtered.length} จาก {txns.length} รายการ
-          </div>
-        </div>
+        </>
       )}
 
       {/* ─── PAYMENT VOUCHER FORM MODAL ─── */}
@@ -1797,13 +1942,30 @@ const Transactions = ({ businesses, user }) => {
         <form onSubmit={handleEdit} className="space-y-4 py-2">
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1.5">หมวดหมู่</label>
-            <input type="text" value={editCategory} onChange={e => setEditCategory(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
+            {(() => {
+              const biz = businesses.find(b => String(b.id) === String(editModal?.business_id));
+              const isIncome = editModal?.type === 'Income';
+              const defaultCats = isIncome ? DEFAULT_INCOME_CATS : DEFAULT_EXPENSE_CATS;
+              const bizCats = isIncome
+                ? (Array.isArray(biz?.income_categories) && biz.income_categories.length > 0 ? biz.income_categories : defaultCats)
+                : (Array.isArray(biz?.expense_categories) && biz.expense_categories.length > 0 ? biz.expense_categories : defaultCats);
+              // รวมกับค่าปัจจุบัน เผื่อเป็น custom ที่ไม่อยู่ใน list
+              const allCats = bizCats.includes(editCategory) ? bizCats : [...bizCats, editCategory].filter(Boolean);
+              return (
+                <select value={editCategory} onChange={e => setEditCategory(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border focus:ring-2 outline-none text-base appearance-none ${isIncome ? 'border-emerald-200 focus:ring-emerald-400 bg-emerald-50/30' : 'border-rose-200 focus:ring-rose-400 bg-rose-50/30'}`}>
+                  {allCats.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              );
+            })()}
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1.5">จำนวนเงิน (฿)</label>
-            <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} min="0" step="0.01"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">฿</span>
+              <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} min="0" step="0.01"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base font-bold" />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1.5">หมายเหตุ</label>
@@ -1836,19 +1998,6 @@ const Transactions = ({ businesses, user }) => {
 };
 
 // ─── BUSINESS MANAGEMENT ───
-const DEFAULT_INCOME_CATS = [
-  'ยอดขายสินค้า (Sales)', 'รายได้จากการบริการ (Services)',
-  'รายได้ค่าเช่า (Rental Income)', 'ดอกเบี้ยรับ (Interest Income)',
-  'รายได้อื่นๆ (Other Income)',
-];
-const DEFAULT_EXPENSE_CATS = [
-  'ต้นทุนขาย/วัตถุดิบ (COGS)', 'เงินเดือนและค่าจ้าง (Salary)',
-  'ค่าเช่าสถานที่ (Rent)', 'ค่าสาธารณูปโภค (Utilities)',
-  'ค่าวัสดุสิ้นเปลือง (Supplies)', 'ค่าโฆษณาและการตลาด (Marketing)',
-  'ค่าซ่อมบำรุง (Maintenance)', 'ค่าขนส่ง (Transportation)',
-  'ค่าประกันภัย (Insurance)', 'ค่าเสื่อมราคา (Depreciation)',
-];
-
 const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
