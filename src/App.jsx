@@ -517,7 +517,7 @@ const Dashboard = ({ setCurrentView, businesses = [] }) => {
   const [pcMax, setPcMax] = useState('');
   const [pcCurrent, setPcCurrent] = useState('');
   const [pcSaving, setPcSaving] = useState(false);
-  const fmt = (n) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 }).format(Number(n) || 0);
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
 
   const openPettyCash = (biz, e) => {
     e.stopPropagation();
@@ -743,7 +743,7 @@ const Dashboard = ({ setCurrentView, businesses = [] }) => {
               </div>
               <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${(biz.growth || 0) >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                 {(biz.growth || 0) >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                {Math.abs(biz.growth || 0)}%
+                {Number(Math.abs(biz.growth || 0)).toFixed(2)}%
               </div>
             </div>
             <div className="mt-auto pt-4 border-t border-slate-100">
@@ -851,7 +851,7 @@ const IncomeEntry = ({ businesses, onSuccess }) => {
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const total = (Number(cash) || 0) + (Number(transfer) || 0) + (Number(card) || 0);
-  const fmt = (n) => new Intl.NumberFormat('th-TH').format(n);
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
   const selectedBiz = businesses.find(b => String(b.id) === String(selectedBizId));
   const incomeCats = (Array.isArray(selectedBiz?.income_categories) && selectedBiz.income_categories.length > 0)
@@ -987,7 +987,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
     setCategory(cats[0] || '');
   };
 
-  const fmt = (n) => new Intl.NumberFormat('th-TH').format(n || 0);
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 
   const handleImagePick = (e) => {
     const files = Array.from(e.target.files);
@@ -1468,7 +1468,7 @@ const Transactions = ({ businesses, user }) => {
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
 
-  const fmt = (n) => new Intl.NumberFormat('th-TH').format(Number(n) || 0);
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
   const activeBiz = businesses.filter(b => b.status === 'Active');
 
   const load = useCallback(() => {
@@ -2163,7 +2163,7 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
     } catch (err) { alert('เกิดข้อผิดพลาด: ' + err.message); }
   };
 
-  const fmt = (n) => new Intl.NumberFormat('th-TH').format(n || 0);
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 
   return (
     <div className="space-y-6">
@@ -2591,7 +2591,7 @@ const Reports = ({ businesses }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const fmt = (n) => new Intl.NumberFormat('th-TH').format(Number(n) || 0);
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
   const activeBiz = businesses.filter(b => b.status === 'Active');
 
   const load = async () => {
