@@ -2750,6 +2750,7 @@ const Reports = ({ businesses }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('category'); // 'category' | 'department'
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
   const activeBiz = businesses.filter(b => b.status === 'Active');
 
@@ -2762,101 +2763,179 @@ const Reports = ({ businesses }) => {
       setData(result);
     } catch (err) {
       setError('โหลดรายงานไม่สำเร็จ: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, [selectedBiz, startDate, endDate]);
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">รายงานงบกำไรขาดทุน (P&L)</h2>
-          <p className="text-slate-500 text-sm mt-1">Profit & Loss Statement</p>
+  // Helper: progress bar row
+  const BarRow = ({ label, total, base, color }) => {
+    const pct = base > 0 ? Math.round(total / base * 100) : 0;
+    return (
+      <div className="px-4 py-3 hover:bg-slate-50 transition-colors">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-sm text-slate-700 font-medium truncate pr-2">{label}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`font-bold text-sm ${color === 'emerald' ? 'text-emerald-600' : 'text-rose-600'}`}>฿{fmt(total)}</span>
+            <span className="text-xs text-slate-400 w-8 text-right">{pct}%</span>
+          </div>
         </div>
-        <button onClick={() => window.print()} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center gap-2"><Printer size={16} /> Print</button>
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full ${color === 'emerald' ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{width: `${pct}%`}} />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-4 px-0 sm:px-0">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800">รายงานงบกำไรขาดทุน (P&L)</h2>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Profit & Loss Statement</p>
+        </div>
+        <button onClick={() => window.print()} className="shrink-0 px-3 py-2 sm:px-4 sm:py-2.5 bg-blue-600 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5">
+          <Printer size={14} /> Print
+        </button>
       </div>
 
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3">
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-3">เลือกธุรกิจ:</label>
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">เลือกธุรกิจ</label>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setSelectedBiz('all')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${selectedBiz === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'}`}>รวมทุกร้าน</button>
+            <button onClick={() => setSelectedBiz('all')}
+              className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-all ${selectedBiz === 'all' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
+              รวมทุกร้าน
+            </button>
             {activeBiz.map(biz => (
-              <button key={biz.id} onClick={() => setSelectedBiz(String(biz.id))} className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${selectedBiz === String(biz.id) ? 'bg-blue-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
-                <BizIcon biz={biz} size="sm" />ร้าน{biz.name}
+              <button key={biz.id} onClick={() => setSelectedBiz(String(biz.id))}
+                className={`px-3 py-1.5 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all ${selectedBiz === String(biz.id) ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
+                <BizIcon biz={biz} size="sm" />{biz.name}
               </button>
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-slate-50 rounded-xl border border-slate-200 px-4 py-2.5">
-          <CalendarDays size={16} className="text-slate-400 flex-shrink-0" />
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="bg-transparent outline-none text-sm text-slate-700 font-medium" />
-          <span className="text-slate-400 font-bold px-1">—</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-            className="bg-transparent outline-none text-sm text-slate-700 font-medium" />
+        {/* date range — stack on mobile */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex items-center gap-2 flex-1 bg-slate-50 rounded-xl border border-slate-200 px-3 py-2">
+            <CalendarDays size={14} className="text-slate-400 shrink-0" />
+            <span className="text-xs text-slate-400 shrink-0">จาก</span>
+            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+              className="bg-transparent outline-none text-sm text-slate-700 font-medium w-full" />
+          </div>
+          <div className="flex items-center gap-2 flex-1 bg-slate-50 rounded-xl border border-slate-200 px-3 py-2">
+            <CalendarDays size={14} className="text-slate-400 shrink-0" />
+            <span className="text-xs text-slate-400 shrink-0">ถึง</span>
+            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+              className="bg-transparent outline-none text-sm text-slate-700 font-medium w-full" />
+          </div>
         </div>
       </div>
 
-      {error && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2"><AlertCircle size={18} />{error}</div>}
+      {error && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2 text-sm"><AlertCircle size={16} />{error}</div>}
 
-      {loading ? <div className="flex justify-center py-12"><Spinner /></div> : data && (
+      {loading ? <div className="flex justify-center py-16"><Spinner /></div> : data && (
         <div className="space-y-4">
-          {/* Summary */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
-              <p className="text-sm text-emerald-700 font-bold mb-1">รายรับรวม</p>
-              <p className="text-2xl font-black text-emerald-600">฿{fmt(data.income)}</p>
+          {/* Summary cards */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 sm:p-5 text-center">
+              <p className="text-xs sm:text-sm text-emerald-700 font-bold mb-1">รายรับรวม</p>
+              <p className="text-lg sm:text-2xl font-black text-emerald-600">฿{fmt(data.income)}</p>
             </div>
-            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 text-center">
-              <p className="text-sm text-rose-700 font-bold mb-1">รายจ่ายรวม</p>
-              <p className="text-2xl font-black text-rose-600">฿{fmt(data.expense)}</p>
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 sm:p-5 text-center">
+              <p className="text-xs sm:text-sm text-rose-700 font-bold mb-1">รายจ่ายรวม</p>
+              <p className="text-lg sm:text-2xl font-black text-rose-600">฿{fmt(data.expense)}</p>
             </div>
-            <div className={`border rounded-2xl p-5 text-center ${Number(data.profit) >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'}`}>
-              <p className={`text-sm font-bold mb-1 ${Number(data.profit) >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>กำไรสุทธิ</p>
-              <p className={`text-2xl font-black ${Number(data.profit) >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>฿{fmt(data.profit)}</p>
+            <div className={`border rounded-2xl p-3 sm:p-5 text-center ${Number(data.profit) >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'}`}>
+              <p className={`text-xs sm:text-sm font-bold mb-1 ${Number(data.profit) >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>กำไรสุทธิ</p>
+              <p className={`text-lg sm:text-2xl font-black ${Number(data.profit) >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>฿{fmt(data.profit)}</p>
             </div>
           </div>
 
-          {/* Income breakdown */}
-          {data.income_items?.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-              <div className="px-5 py-3 bg-emerald-50 border-b border-emerald-100">
-                <h3 className="font-bold text-emerald-800">รายรับแยกตามหมวดหมู่</h3>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {data.income_items.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50">
-                    <span className="text-sm text-slate-700">{item.category || '(ไม่ระบุ)'}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-emerald-600">฿{fmt(item.total)}</span>
-                      <span className="text-xs text-slate-400 w-8 text-right">{data.income > 0 ? Math.round(item.total / data.income * 100) : 0}%</span>
-                    </div>
+          {/* Tabs */}
+          <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+            {[{id:'category',label:'แยกตามหมวดหมู่'},{id:'department',label:'แยกตามแผนก'}].map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab: หมวดหมู่ */}
+          {activeTab === 'category' && (
+            <div className="space-y-3">
+              {/* รายรับ */}
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+                  <h3 className="font-bold text-emerald-800 text-sm">รายรับแยกตามหมวดหมู่</h3>
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">{data.income_items?.length || 0} รายการ</span>
+                </div>
+                {data.income_items?.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {data.income_items.map((item, i) => (
+                      <BarRow key={i} label={item.category || '(ไม่ระบุ)'} total={parseFloat(item.total)} base={data.income} color="emerald" />
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <p className="text-center text-slate-400 py-6 text-sm">ไม่มีข้อมูลรายรับ</p>
+                )}
+              </div>
+              {/* รายจ่าย */}
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-4 py-3 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+                  <h3 className="font-bold text-rose-800 text-sm">รายจ่ายแยกตามหมวดหมู่</h3>
+                  <span className="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">{data.expense_items?.length || 0} รายการ</span>
+                </div>
+                {data.expense_items?.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {data.expense_items.map((item, i) => (
+                      <BarRow key={i} label={item.category || '(ไม่ระบุ)'} total={parseFloat(item.total)} base={data.expense} color="rose" />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-slate-400 py-6 text-sm">ไม่มีข้อมูลรายจ่าย</p>
+                )}
               </div>
             </div>
           )}
 
-          {/* Expense breakdown */}
-          {data.expense_items?.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-              <div className="px-5 py-3 bg-rose-50 border-b border-rose-100">
-                <h3 className="font-bold text-rose-800">รายจ่ายแยกตามหมวดหมู่</h3>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {data.expense_items.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50">
-                    <span className="text-sm text-slate-700">{item.category || '(ไม่ระบุ)'}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-rose-600">฿{fmt(item.total)}</span>
-                      <span className="text-xs text-slate-400 w-8 text-right">{data.expense > 0 ? Math.round(item.total / data.expense * 100) : 0}%</span>
-                    </div>
+          {/* Tab: แผนก */}
+          {activeTab === 'department' && (
+            <div className="space-y-3">
+              {/* รายรับตามแผนก */}
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+                  <h3 className="font-bold text-emerald-800 text-sm">รายรับแยกตามแผนก</h3>
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">{data.income_by_dept?.length || 0} แผนก</span>
+                </div>
+                {data.income_by_dept?.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {data.income_by_dept.map((item, i) => (
+                      <BarRow key={i} label={item.department} total={parseFloat(item.total)} base={data.income} color="emerald" />
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <p className="text-center text-slate-400 py-6 text-sm">ไม่มีข้อมูลรายรับตามแผนก</p>
+                )}
+              </div>
+              {/* รายจ่ายตามแผนก */}
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-4 py-3 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+                  <h3 className="font-bold text-rose-800 text-sm">รายจ่ายแยกตามแผนก</h3>
+                  <span className="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">{data.expense_by_dept?.length || 0} แผนก</span>
+                </div>
+                {data.expense_by_dept?.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {data.expense_by_dept.map((item, i) => (
+                      <BarRow key={i} label={item.department} total={parseFloat(item.total)} base={data.expense} color="rose" />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-slate-400 py-6 text-sm">ไม่มีข้อมูลรายจ่ายตามแผนก</p>
+                )}
               </div>
             </div>
           )}

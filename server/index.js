@@ -432,14 +432,20 @@ route('get', '/api/reports/pl', async (req, res) => {
     if (business_id) { w += ` AND business_id=$${i++}`; p.push(business_id); }
     if (start) { w += ` AND date>=$${i++}`; p.push(start); }
     if (end) { w += ` AND date<=$${i++}`; p.push(end + ' 23:59:59'); }
-    const [ir, er, ic, ec] = await Promise.all([
+    const [ir, er, ic, ec, id_, ed] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Income'`, p),
       pool.query(`SELECT COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Expense'`, p),
       pool.query(`SELECT category,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Income' GROUP BY category ORDER BY total DESC`, p),
       pool.query(`SELECT category,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Expense' GROUP BY category ORDER BY total DESC`, p),
+      pool.query(`SELECT COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Income' GROUP BY department ORDER BY total DESC`, p),
+      pool.query(`SELECT COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Expense' GROUP BY department ORDER BY total DESC`, p),
     ]);
     const income = parseFloat(ir.rows[0].total), expense = parseFloat(er.rows[0].total);
-    res.json({ income, expense, profit: income - expense, income_items: ic.rows, expense_items: ec.rows });
+    res.json({
+      income, expense, profit: income - expense,
+      income_items: ic.rows, expense_items: ec.rows,
+      income_by_dept: id_.rows, expense_by_dept: ed.rows
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
