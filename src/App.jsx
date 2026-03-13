@@ -2788,9 +2788,9 @@ const Reports = ({ businesses }) => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 px-0 sm:px-0">
+    <div className="max-w-4xl mx-auto space-y-4 -mx-4 sm:mx-auto px-0 sm:px-0">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3 px-4 sm:px-0">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800">รายงานงบกำไรขาดทุน (P&L)</h2>
           <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Profit & Loss Statement</p>
@@ -2801,7 +2801,7 @@ const Reports = ({ businesses }) => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+      <div className="bg-white p-4 rounded-none sm:rounded-2xl shadow-sm border-y sm:border border-slate-200 space-y-3">
         <div>
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">เลือกธุรกิจ</label>
           <div className="flex flex-wrap gap-2">
@@ -2834,28 +2834,28 @@ const Reports = ({ businesses }) => {
         </div>
       </div>
 
-      {error && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2 text-sm"><AlertCircle size={16} />{error}</div>}
+      {error && <div className="mx-4 sm:mx-0 p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2 text-sm"><AlertCircle size={16} />{error}</div>}
 
       {loading ? <div className="flex justify-center py-16"><Spinner /></div> : data && (
         <div className="space-y-4">
           {/* Summary cards */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 px-4 sm:px-0">
             <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 sm:p-5 text-center">
-              <p className="text-xs sm:text-sm text-emerald-700 font-bold mb-1">รายรับรวม</p>
-              <p className="text-lg sm:text-2xl font-black text-emerald-600">฿{fmt(data.income)}</p>
+              <p className="text-xs text-emerald-700 font-bold mb-1">รายรับรวม</p>
+              <p className="text-base sm:text-2xl font-black text-emerald-600 break-all">฿{fmt(data.income)}</p>
             </div>
             <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 sm:p-5 text-center">
-              <p className="text-xs sm:text-sm text-rose-700 font-bold mb-1">รายจ่ายรวม</p>
-              <p className="text-lg sm:text-2xl font-black text-rose-600">฿{fmt(data.expense)}</p>
+              <p className="text-xs text-rose-700 font-bold mb-1">รายจ่ายรวม</p>
+              <p className="text-base sm:text-2xl font-black text-rose-600 break-all">฿{fmt(data.expense)}</p>
             </div>
             <div className={`border rounded-2xl p-3 sm:p-5 text-center ${Number(data.profit) >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'}`}>
-              <p className={`text-xs sm:text-sm font-bold mb-1 ${Number(data.profit) >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>กำไรสุทธิ</p>
-              <p className={`text-lg sm:text-2xl font-black ${Number(data.profit) >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>฿{fmt(data.profit)}</p>
+              <p className={`text-xs font-bold mb-1 ${Number(data.profit) >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>กำไรสุทธิ</p>
+              <p className={`text-base sm:text-2xl font-black break-all ${Number(data.profit) >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>฿{fmt(data.profit)}</p>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+          <div className="flex bg-slate-100 rounded-none sm:rounded-xl p-1 gap-1 border-y sm:border-0 border-slate-200 sm:mx-0">
             {[{id:'category',label:'แยกตามหมวดหมู่'},{id:'department',label:'แยกตามแผนก'}].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -2868,7 +2868,7 @@ const Reports = ({ businesses }) => {
           {activeTab === 'category' && (
             <div className="space-y-3">
               {/* รายรับ */}
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-none sm:rounded-2xl border-y sm:border border-slate-200 overflow-hidden">
                 <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
                   <h3 className="font-bold text-emerald-800 text-sm">รายรับแยกตามหมวดหมู่</h3>
                   <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">{data.income_items?.length || 0} รายการ</span>
@@ -2884,7 +2884,7 @@ const Reports = ({ businesses }) => {
                 )}
               </div>
               {/* รายจ่าย */}
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-none sm:rounded-2xl border-y sm:border border-slate-200 overflow-hidden">
                 <div className="px-4 py-3 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
                   <h3 className="font-bold text-rose-800 text-sm">รายจ่ายแยกตามหมวดหมู่</h3>
                   <span className="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">{data.expense_items?.length || 0} รายการ</span>
@@ -2906,7 +2906,7 @@ const Reports = ({ businesses }) => {
           {activeTab === 'department' && (
             <div className="space-y-3">
               {/* รายรับตามแผนก */}
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-none sm:rounded-2xl border-y sm:border border-slate-200 overflow-hidden">
                 <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
                   <h3 className="font-bold text-emerald-800 text-sm">รายรับแยกตามแผนก</h3>
                   <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">{data.income_by_dept?.length || 0} แผนก</span>
@@ -2922,7 +2922,7 @@ const Reports = ({ businesses }) => {
                 )}
               </div>
               {/* รายจ่ายตามแผนก */}
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-none sm:rounded-2xl border-y sm:border border-slate-200 overflow-hidden">
                 <div className="px-4 py-3 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
                   <h3 className="font-bold text-rose-800 text-sm">รายจ่ายแยกตามแผนก</h3>
                   <span className="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">{data.expense_by_dept?.length || 0} แผนก</span>
