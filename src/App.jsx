@@ -375,7 +375,7 @@ const SetPasswordPage = ({ token }) => {
             <Lock size={32} />
           </div>
           <h1 className="text-2xl font-black text-slate-800">ตั้งรหัสผ่าน</h1>
-          <p className="text-slate-500 text-sm mt-1">FinanceHub</p>
+          <p className="text-slate-500 text-sm mt-1">P'KEEP</p>
         </div>
 
         {error && !userInfo && (
@@ -430,7 +430,7 @@ const SetPasswordPage = ({ token }) => {
 
 const LoginPage = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('admin@financehub.com');
+  const [email, setEmail] = useState('admin@pkeep.com');
   const [password, setPassword] = useState('admin1234');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -449,16 +449,16 @@ const LoginPage = ({ onLogin }) => {
         onLogin(data.user);
       } else {
         // Fallback สำหรับ demo
-        if (email === 'admin@financehub.com' && password === 'admin1234') {
-          onLogin({ name: 'Admin FinanceHub', role: 'เจ้าของธุรกิจ', email });
+        if (email === 'admin@pkeep.com' && password === 'admin1234') {
+          onLogin({ name: 'Admin P'KEEP', role: 'เจ้าของธุรกิจ', email });
         } else {
           setError(data.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
         }
       }
     } catch {
       // ถ้า API ไม่ตอบ ใช้ fallback
-      if (email === 'admin@financehub.com' && password === 'admin1234') {
-        onLogin({ name: 'Admin FinanceHub', role: 'เจ้าของธุรกิจ', email });
+      if (email === 'admin@pkeep.com' && password === 'admin1234') {
+        onLogin({ name: 'Admin P'KEEP', role: 'เจ้าของธุรกิจ', email });
       } else {
         setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
       }
@@ -468,35 +468,34 @@ const LoginPage = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 rounded-full bg-blue-500/10 blur-2xl"></div>
-        <div className="text-center mb-10">
-          <div className="bg-blue-600 text-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
-            <Wallet size={32} />
+    <div className="min-h-screen bg-zinc-100 flex items-center justify-center p-4">
+      <div className="bg-white border border-zinc-200 rounded-xl shadow-sm w-full max-w-sm p-8">
+        <div className="text-center mb-8">
+          <div className="w-10 h-10 rounded-lg bg-zinc-900 flex items-center justify-center mx-auto mb-5">
+            <Wallet size={20} className="text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-800">FinanceHub</h1>
-          <p className="text-slate-500 mt-2 text-sm">จัดการการเงินหลายสาขาอย่างมืออาชีพ</p>
+          <h1 className="text-xl font-bold text-zinc-900">P'KEEP</h1>
+          <p className="text-zinc-500 mt-1 text-sm">จัดการการเงินหลายสาขาอย่างมืออาชีพ</p>
         </div>
-        {error && <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-sm font-medium flex items-center gap-2"><AlertCircle size={16} />{error}</div>}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {error && <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-sm font-medium flex items-center gap-2"><AlertCircle size={16} />{error}</div>}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">ชื่อผู้ใช้ (Username)</label>
-            <input type="text" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 bg-slate-50" placeholder="กรอก Username" />
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">ชื่อผู้ใช้ (Username)</label>
+            <input type="text" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2.5 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-zinc-800 bg-white text-sm" placeholder="กรอก Username" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">รหัสผ่าน</label>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">รหัสผ่าน</label>
             <div className="relative">
-              <input type={showPassword ? 'text' : 'password'} required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 bg-slate-50 pr-12" />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              <input type={showPassword ? 'text' : 'password'} required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2.5 rounded-lg border border-zinc-300 focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-zinc-800 bg-white text-sm pr-10" />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
           </div>
-          <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-sm text-blue-700">
-            <strong>Demo Login:</strong> admin@financehub.com / admin1234
+          <div className="bg-zinc-50 border border-zinc-200 p-3 rounded-lg text-xs text-zinc-500">
+            <strong className="text-zinc-700">Demo:</strong> admin@pkeep.com / admin1234
           </div>
-          <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2">
+          <button type="submit" disabled={loading} className="w-full bg-zinc-900 hover:bg-zinc-800 disabled:opacity-60 text-white font-medium py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors">
             {loading ? <><Spinner /> กำลังเข้าสู่ระบบ...</> : 'เข้าสู่ระบบ'}
           </button>
         </form>
@@ -606,7 +605,7 @@ const Dashboard = ({ setCurrentView, businesses = [] }) => {
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3">
       <Spinner />
-      <p className="text-sm text-slate-400">กำลังโหลดข้อมูล...</p>
+      <p className="text-sm text-zinc-400">กำลังโหลดข้อมูล...</p>
     </div>
   );
 
@@ -692,146 +691,146 @@ const Dashboard = ({ setCurrentView, businesses = [] }) => {
       )}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">ภาพรวมธุรกิจ (Dashboard)</h2>
-          <p className="text-slate-500 text-sm mt-1">สรุปข้อมูลการเงินทุกสาขา</p>
+          <h2 className="text-xl font-semibold text-zinc-900">ภาพรวมธุรกิจ</h2>
+          <p className="text-zinc-500 text-sm mt-0.5">สรุปข้อมูลการเงินทุกสาขา</p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-200 flex-wrap gap-0.5">
+          <div className="flex bg-white rounded-lg p-1 border border-zinc-200 flex-wrap gap-0.5">
             {['วันนี้', 'สัปดาห์นี้', 'เดือนนี้', 'เดือนที่แล้ว', 'กำหนดเอง'].map(p => (
               <button key={p} onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 text-xs rounded-lg transition-colors font-bold ${period === p ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>{p}</button>
+                className={`px-3 py-1.5 text-xs rounded-md transition-colors font-medium ${period === p ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}>{p}</button>
             ))}
           </div>
           {period === 'กำหนดเอง' && (
-            <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200 px-3 py-2 shadow-sm">
+            <div className="flex items-center gap-2 bg-white rounded-lg border border-zinc-200 px-3 py-2">
               <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-                className="text-xs border-0 outline-none text-slate-700 font-medium" />
-              <span className="text-slate-400 text-xs font-bold">—</span>
+                className="text-xs border-0 outline-none text-zinc-700" />
+              <span className="text-zinc-400 text-xs">—</span>
               <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-                className="text-xs border-0 outline-none text-slate-700 font-medium" />
+                className="text-xs border-0 outline-none text-zinc-700" />
             </div>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {bizData.map((biz) => (
-          <div key={biz.id} className="bg-white rounded-[24px] shadow-sm border border-slate-100 hover:shadow-lg transition-all p-5 flex flex-col">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center border border-slate-100 shrink-0 text-3xl overflow-hidden">
-                {biz.logo_type === 'image' && biz.icon ? <img src={biz.icon} className="w-full h-full object-cover rounded-2xl" alt={biz.name} /> : (biz.icon || '🏪')}
+          <div key={biz.id} className="bg-white rounded-xl border border-zinc-200 hover:border-zinc-300 hover:shadow-sm transition-all p-5 flex flex-col">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center border border-zinc-200 shrink-0 text-xl overflow-hidden">
+                {biz.logo_type === 'image' && biz.icon ? <img src={biz.icon} className="w-full h-full object-cover rounded-lg" alt={biz.name} /> : (biz.icon || '🏪')}
               </div>
               <div>
-                <h3 className="font-bold text-slate-800 text-xl">{biz.name}</h3>
-                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full mt-1 inline-block">{biz.type}</span>
+                <h3 className="font-semibold text-zinc-900 text-sm">{biz.name}</h3>
+                <span className="text-xs text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-md mt-0.5 inline-block">{biz.type}</span>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-100">
-                <p className="text-[11px] text-slate-500 mb-1">รายรับ</p>
-                <p className="font-bold text-emerald-600">{fmt(biz.income)}</p>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                <p className="text-[11px] text-zinc-500 mb-1">รายรับ</p>
+                <p className="font-semibold text-emerald-600 text-sm">{fmt(biz.income)}</p>
               </div>
-              <div className="bg-rose-50 p-3.5 rounded-2xl border border-rose-100">
-                <p className="text-[11px] text-slate-500 mb-1">รายจ่าย</p>
-                <p className="font-bold text-rose-600">{fmt(biz.expense)}</p>
+              <div className="bg-rose-50 p-3 rounded-lg border border-rose-100">
+                <p className="text-[11px] text-zinc-500 mb-1">รายจ่าย</p>
+                <p className="font-semibold text-rose-600 text-sm">{fmt(biz.expense)}</p>
               </div>
             </div>
             <div className="mb-4 flex justify-between items-end">
               <div>
-                <p className="text-[11px] text-slate-500 mb-1">กำไรสุทธิ</p>
-                <p className="text-2xl font-black text-blue-600">{fmt(biz.profit)}</p>
+                <p className="text-[11px] text-zinc-500 mb-1">กำไรสุทธิ</p>
+                <p className="text-xl font-bold text-zinc-900">{fmt(biz.profit)}</p>
               </div>
-              <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${(biz.growth || 0) >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                {(biz.growth || 0) >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+              <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${(biz.growth || 0) >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                {(biz.growth || 0) >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 {Number(Math.abs(biz.growth || 0)).toFixed(2)}%
               </div>
             </div>
-            <div className="mt-auto pt-4 border-t border-slate-100">
-              <div className="flex justify-between items-center text-xs text-slate-600 mb-1">
-                <span className="font-bold text-slate-800">เงินสดย่อย</span>
+            <div className="mt-auto pt-4 border-t border-zinc-100">
+              <div className="flex justify-between items-center text-xs text-zinc-600 mb-1.5">
+                <span className="font-medium text-zinc-700">เงินสดย่อย</span>
                 <div className="flex items-center gap-2">
-                  <span>{fmt(biz.petty_cash)} / {fmt(biz.petty_cash_max)}</span>
+                  <span className="text-zinc-500">{fmt(biz.petty_cash)} / {fmt(biz.petty_cash_max)}</span>
                   <button onClick={(e) => openPettyCash(biz, e)}
-                    className="w-6 h-6 flex items-center justify-center bg-amber-100 hover:bg-amber-200 text-amber-600 rounded-lg transition-colors" title="แก้ไขเงินสดย่อย">
-                    <Edit2 size={11} />
+                    className="w-5 h-5 flex items-center justify-center bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded transition-colors">
+                    <Edit2 size={10} />
                   </button>
                 </div>
               </div>
-              <div className="w-full bg-slate-100 rounded-full h-2 mb-4">
+              <div className="w-full bg-zinc-100 rounded-full h-1.5 mb-4">
                 <div className={`h-full rounded-full ${(biz.petty_cash / biz.petty_cash_max) < 0.3 ? 'bg-rose-500' : 'bg-emerald-500'}`}
                   style={{ width: `${Math.min(100, (biz.petty_cash / biz.petty_cash_max) * 100)}%` }}></div>
               </div>
-              <button onClick={() => setSelectedBiz(biz)} className="w-full flex items-center justify-center gap-1.5 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-4 py-3 rounded-xl transition-all">
-                ดูรายละเอียด <ChevronRight size={16} />
+              <button onClick={() => setSelectedBiz(biz)} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-zinc-700 bg-zinc-50 hover:bg-zinc-900 hover:text-white border border-zinc-200 px-4 py-2.5 rounded-lg transition-all">
+                ดูรายละเอียด <ChevronRight size={14} />
               </button>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden">
-        <h3 className="text-slate-300 text-sm font-medium mb-6">ภาพรวมทุกสาขา (Total Summary)</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+      <div className="bg-zinc-900 rounded-xl p-6 text-white">
+        <h3 className="text-zinc-400 text-xs font-medium uppercase tracking-wider mb-5">ภาพรวมทุกสาขา</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div>
-            <p className="text-sm text-slate-400 mb-2">รายรับรวม</p>
-            <p className="text-3xl font-bold text-emerald-400">{fmt(bizData.reduce((s, b) => s + (b.income || 0), 0))}</p>
+            <p className="text-xs text-zinc-500 mb-1.5">รายรับรวม</p>
+            <p className="text-2xl font-bold text-emerald-400">{fmt(bizData.reduce((s, b) => s + (b.income || 0), 0))}</p>
           </div>
-          <div className="sm:border-l sm:border-slate-700 sm:pl-8">
-            <p className="text-sm text-slate-400 mb-2">รายจ่ายรวม</p>
-            <p className="text-3xl font-bold text-rose-400">{fmt(bizData.reduce((s, b) => s + (b.expense || 0), 0))}</p>
+          <div className="sm:border-l sm:border-zinc-800 sm:pl-6">
+            <p className="text-xs text-zinc-500 mb-1.5">รายจ่ายรวม</p>
+            <p className="text-2xl font-bold text-rose-400">{fmt(bizData.reduce((s, b) => s + (b.expense || 0), 0))}</p>
           </div>
-          <div className="sm:border-l sm:border-slate-700 sm:pl-8">
-            <p className="text-sm text-slate-400 mb-2">กำไรสุทธิรวม</p>
-            <p className="text-3xl font-bold text-blue-400">{fmt(bizData.reduce((s, b) => s + (b.profit || 0), 0))}</p>
+          <div className="sm:border-l sm:border-zinc-800 sm:pl-6">
+            <p className="text-xs text-zinc-500 mb-1.5">กำไรสุทธิรวม</p>
+            <p className="text-2xl font-bold text-white">{fmt(bizData.reduce((s, b) => s + (b.profit || 0), 0))}</p>
           </div>
         </div>
       </div>
 
       {selectedBiz && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="bg-blue-600 p-6 relative shrink-0">
-              <button onClick={() => setSelectedBiz(null)} className="absolute top-4 right-4 text-white/80 hover:text-white p-1 rounded-full hover:bg-white/10"><X size={24} /></button>
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center overflow-hidden"><BizIcon biz={selectedBiz} size="lg" /></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] border border-zinc-200">
+            <div className="bg-zinc-900 p-5 relative shrink-0">
+              <button onClick={() => setSelectedBiz(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-md hover:bg-zinc-800"><X size={18} /></button>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700"><BizIcon biz={selectedBiz} size="lg" /></div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">ร้าน{selectedBiz.name}</h2>
-                  <p className="text-blue-100 text-sm">{selectedBiz.type}</p>
+                  <h2 className="text-lg font-semibold text-white">{selectedBiz.name}</h2>
+                  <p className="text-zinc-400 text-xs">{selectedBiz.type}</p>
                 </div>
               </div>
             </div>
-            <div className="p-6 overflow-y-auto space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
-                  <p className="text-emerald-700 text-xs mb-1">รายรับ</p>
-                  <p className="font-bold text-emerald-600 text-sm">{fmt(selectedBiz.income)}</p>
+            <div className="p-5 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
+                  <p className="text-emerald-700 text-[11px] mb-1">รายรับ</p>
+                  <p className="font-semibold text-emerald-600 text-xs">{fmt(selectedBiz.income)}</p>
                 </div>
-                <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-center">
-                  <p className="text-rose-700 text-xs mb-1">รายจ่าย</p>
-                  <p className="font-bold text-rose-600 text-sm">{fmt(selectedBiz.expense)}</p>
+                <div className="bg-rose-50 border border-rose-100 rounded-lg p-3 text-center">
+                  <p className="text-rose-700 text-[11px] mb-1">รายจ่าย</p>
+                  <p className="font-semibold text-rose-600 text-xs">{fmt(selectedBiz.expense)}</p>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-                  <p className="text-blue-700 text-xs mb-1">กำไร</p>
-                  <p className="font-bold text-blue-600 text-sm">{fmt(selectedBiz.profit)}</p>
+                <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-center">
+                  <p className="text-zinc-600 text-[11px] mb-1">กำไร</p>
+                  <p className="font-semibold text-zinc-900 text-xs">{fmt(selectedBiz.profit)}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => { setCurrentView('income'); setSelectedBiz(null); }} className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-xl p-4 flex flex-col items-center gap-2">
-                  <span className="text-2xl">💰</span><span className="text-emerald-800 font-medium text-sm">บันทึกรายรับ</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => { setCurrentView('income'); setSelectedBiz(null); }} className="bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-lg p-3.5 flex flex-col items-center gap-1.5 transition-colors">
+                  <span className="text-xl">💰</span><span className="text-zinc-700 font-medium text-xs">บันทึกรายรับ</span>
                 </button>
-                <button onClick={() => { setCurrentView('expense'); setSelectedBiz(null); }} className="bg-rose-50 hover:bg-rose-100 border border-rose-100 rounded-xl p-4 flex flex-col items-center gap-2">
-                  <span className="text-2xl">💸</span><span className="text-rose-800 font-medium text-sm">บันทึกรายจ่าย</span>
+                <button onClick={() => { setCurrentView('expense'); setSelectedBiz(null); }} className="bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-lg p-3.5 flex flex-col items-center gap-1.5 transition-colors">
+                  <span className="text-xl">💸</span><span className="text-zinc-700 font-medium text-xs">บันทึกรายจ่าย</span>
                 </button>
-                <button onClick={() => { setCurrentView('transactions'); setSelectedBiz(null); }} className="bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl p-4 flex flex-col items-center gap-2">
-                  <span className="text-2xl">📋</span><span className="text-blue-800 font-medium text-sm">ดูรายการ</span>
+                <button onClick={() => { setCurrentView('transactions'); setSelectedBiz(null); }} className="bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-lg p-3.5 flex flex-col items-center gap-1.5 transition-colors">
+                  <span className="text-xl">📋</span><span className="text-zinc-700 font-medium text-xs">ดูรายการ</span>
                 </button>
-                <button onClick={() => { setCurrentView('reports'); setSelectedBiz(null); }} className="bg-purple-50 hover:bg-purple-100 border border-purple-100 rounded-xl p-4 flex flex-col items-center gap-2">
-                  <span className="text-2xl">📊</span><span className="text-purple-800 font-medium text-sm">รายงาน</span>
+                <button onClick={() => { setCurrentView('reports'); setSelectedBiz(null); }} className="bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-lg p-3.5 flex flex-col items-center gap-1.5 transition-colors">
+                  <span className="text-xl">📊</span><span className="text-zinc-700 font-medium text-xs">รายงาน</span>
                 </button>
               </div>
             </div>
-            <div className="p-4 border-t border-slate-100">
-              <button onClick={() => setSelectedBiz(null)} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-3.5 rounded-xl">ปิด</button>
+            <div className="p-4 border-t border-zinc-100">
+              <button onClick={() => setSelectedBiz(null)} className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 rounded-lg text-sm transition-colors">ปิด</button>
             </div>
           </div>
         </div>
@@ -4642,68 +4641,70 @@ export default function App() {
 
   const SidebarContent = () => (
     <>
-      <div className="p-6 flex items-center gap-3 bg-slate-950/50">
-        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white"><Wallet size={20} /></div>
-        <span className="text-xl font-black text-white">FinanceHub</span>
+      <div className="h-14 flex items-center px-4 border-b border-zinc-800">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center shadow-sm"><Wallet size={15} className="text-zinc-900" /></div>
+          <span className="text-[15px] font-bold text-white tracking-tight">P'KEEP</span>
+        </div>
       </div>
-      <nav className="flex-1 py-6 px-4 space-y-1.5 overflow-y-auto">
-        <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-3 px-3">เมนูหลัก</div>
+      <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
+        <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-2 px-3 pt-2">เมนูหลัก</div>
         {menuItems.slice(0, 4).map(item => {
           const Icon = item.icon; const isActive = currentView === item.id;
           return (
-            <button key={item.id} onClick={() => { setCurrentView(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${isActive ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
-              <Icon size={18} className={isActive ? 'text-white' : (item.color || 'text-slate-400')} />
-              <span className="font-bold text-sm">{item.label}</span>
+            <button key={item.id} onClick={() => { setCurrentView(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-all text-left ${isActive ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}>
+              <Icon size={16} />
+              <span className="font-medium text-[13px]">{item.label}</span>
             </button>
           );
         })}
-        <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider mb-3 px-3 mt-6">การจัดการ</div>
+        <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-2 px-3 pt-4">การจัดการ</div>
         {menuItems.slice(4).map(item => {
           const Icon = item.icon; const isActive = currentView === item.id;
           return (
-            <button key={item.id} onClick={() => { setCurrentView(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${isActive ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
-              <Icon size={18} className={isActive ? 'text-white' : 'text-slate-400'} />
-              <span className="font-bold text-sm">{item.label}</span>
+            <button key={item.id} onClick={() => { setCurrentView(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-all text-left ${isActive ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}>
+              <Icon size={16} />
+              <span className="font-medium text-[13px]">{item.label}</span>
             </button>
           );
         })}
       </nav>
-      <div className="p-4 border-t border-slate-800">
-        <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors text-sm font-bold">
-          <LogOut size={18} /> ออกจากระบบ
+      <div className="p-3 border-t border-zinc-800">
+        <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-zinc-400 hover:text-rose-400 hover:bg-zinc-800 transition-colors text-[13px] font-medium">
+          <LogOut size={15} /> ออกจากระบบ
         </button>
       </div>
     </>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <aside className="hidden md:flex flex-col w-64 bg-slate-900 text-slate-300 fixed h-full z-10"><SidebarContent /></aside>
-      {isMobileMenuOpen && <div className="md:hidden fixed inset-0 bg-slate-900/60 z-40" onClick={() => setIsMobileMenuOpen(false)}></div>}
-      <aside className={`md:hidden fixed inset-y-0 left-0 w-72 bg-slate-900 text-slate-300 z-50 transform transition-transform duration-300 flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}><SidebarContent /></aside>
+    <div className="min-h-screen bg-zinc-50 flex">
+      <aside className="hidden md:flex flex-col w-56 bg-zinc-900 text-zinc-300 fixed h-full z-10 border-r border-zinc-800"><SidebarContent /></aside>
+      {isMobileMenuOpen && <div className="md:hidden fixed inset-0 bg-black/60 z-40" onClick={() => setIsMobileMenuOpen(false)}></div>}
+      <aside className={`md:hidden fixed inset-y-0 left-0 w-56 bg-zinc-900 text-zinc-300 z-50 transform transition-transform duration-300 flex flex-col border-r border-zinc-800 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}><SidebarContent /></aside>
 
-      <main className="flex-1 md:ml-64 flex flex-col min-h-screen">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30 shadow-sm">
+      <main className="flex-1 md:ml-56 flex flex-col min-h-screen">
+        <header className="h-14 bg-white border-b border-zinc-200 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4">
-            <button className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg" onClick={() => setIsMobileMenuOpen(true)}><Menu size={24} /></button>
-            <div className="hidden sm:flex items-center gap-2 text-sm text-slate-500">
-              <span className="font-black text-slate-800">FinanceHub</span>
-              <span className="text-slate-300">/</span>
-              <span className="font-bold text-blue-600">{menuItems.find(m => m.id === currentView)?.label}</span>
+            <button className="md:hidden p-1.5 text-zinc-600 hover:bg-zinc-100 rounded-md" onClick={() => setIsMobileMenuOpen(true)}><Menu size={20} /></button>
+            <div className="hidden sm:flex items-center gap-2 text-sm text-zinc-500">
+              <span className="font-semibold text-zinc-900">P'KEEP</span>
+              <span className="text-zinc-300">/</span>
+              <span className="font-medium text-zinc-600">{menuItems.find(m => m.id === currentView)?.label}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-sm border-2 border-white shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold text-xs border border-zinc-700">
               {user.name.charAt(0)}
             </div>
             <div className="hidden sm:block">
-              <p className="text-sm font-black text-slate-800">{user.name}</p>
-              <p className="text-xs text-slate-500">{user.role}</p>
+              <p className="text-[13px] font-semibold text-zinc-900 leading-tight">{user.name}</p>
+              <p className="text-[11px] text-zinc-500">{user.role}</p>
             </div>
           </div>
         </header>
 
-        <div className="p-4 sm:p-6 lg:p-8 flex-1">
+        <div className="p-4 sm:p-6 flex-1">
           {renderView()}
         </div>
       </main>
