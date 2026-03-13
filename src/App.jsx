@@ -768,23 +768,6 @@ const Dashboard = ({ setCurrentView, businesses = [] }) => {
         ))}
       </div>
 
-      <div className="bg-zinc-900 rounded-xl p-6 text-white">
-        <h3 className="text-zinc-400 text-xs font-medium uppercase tracking-wider mb-5">ภาพรวมทุกสาขา</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div>
-            <p className="text-xs text-zinc-500 mb-1.5">รายรับรวม</p>
-            <p className="text-2xl font-bold text-emerald-400">{fmt(bizData.reduce((s, b) => s + (b.income || 0), 0))}</p>
-          </div>
-          <div className="sm:border-l sm:border-zinc-800 sm:pl-6">
-            <p className="text-xs text-zinc-500 mb-1.5">รายจ่ายรวม</p>
-            <p className="text-2xl font-bold text-rose-400">{fmt(bizData.reduce((s, b) => s + (b.expense || 0), 0))}</p>
-          </div>
-          <div className="sm:border-l sm:border-zinc-800 sm:pl-6">
-            <p className="text-xs text-zinc-500 mb-1.5">กำไรสุทธิรวม</p>
-            <p className="text-2xl font-bold text-white">{fmt(bizData.reduce((s, b) => s + (b.profit || 0), 0))}</p>
-          </div>
-        </div>
-      </div>
 
       {selectedBiz && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
