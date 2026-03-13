@@ -177,16 +177,16 @@ route('get', '/api/transactions', async (req, res) => {
 
 route('post', '/api/transactions', async (req, res) => {
   const { business_id, type, category, amount, date, payment_cash, payment_transfer,
-    payment_card, petty_cash, note, images, created_by_name } = req.body;
+    payment_card, petty_cash, note, department, images, created_by_name } = req.body;
   try {
     const cnt = parseInt((await pool.query('SELECT COUNT(*) FROM transactions')).rows[0].count) + 1;
     const txn_id = `TRX-${String(cnt).padStart(4, '0')}`;
     const result = await pool.query(
       `INSERT INTO transactions (txn_id,business_id,type,category,amount,date,
-       payment_cash,payment_transfer,payment_card,petty_cash,note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+       payment_cash,payment_transfer,payment_card,petty_cash,note,department)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [txn_id, business_id, type, category, amount, date || new Date(),
-       payment_cash || 0, payment_transfer || 0, payment_card || 0, petty_cash || false, note]
+       payment_cash || 0, payment_transfer || 0, payment_card || 0, petty_cash || false, note, department || null]
     );
     const txn = result.rows[0];
     // บันทึกรูปภาพ
