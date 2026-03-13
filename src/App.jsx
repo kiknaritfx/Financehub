@@ -4639,62 +4639,113 @@ export default function App() {
     }
   };
 
+  const menuGroups = [
+    {
+      label: 'General',
+      items: [
+        { id: 'dashboard', label: 'ภาพรวม', icon: LayoutDashboard },
+        { id: 'income', label: 'รับเงิน', icon: TrendingUp },
+        { id: 'expense', label: 'จ่ายเงิน', icon: TrendingDown },
+        { id: 'transactions', label: 'รายการธุรกรรม', icon: List },
+      ]
+    },
+    {
+      label: 'เอกสาร',
+      items: [
+        { id: 'payment_vouchers', label: 'ใบสำคัญจ่าย', icon: FileEdit },
+        { id: 'documents', label: 'เอกสาร', icon: FilePlus },
+        { id: 'reports', label: 'รายงาน P&L', icon: FileText },
+      ]
+    },
+    {
+      label: 'Settings',
+      items: [
+        { id: 'businesses', label: 'จัดการธุรกิจ', icon: Building2 },
+        { id: 'users', label: 'จัดการสิทธิ์', icon: Users },
+      ]
+    },
+  ];
+
   const SidebarContent = () => (
     <>
-      <div className="h-14 flex items-center px-4 border-b border-zinc-800">
+      {/* Logo */}
+      <div className="h-14 flex items-center px-4 border-b border-zinc-200">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center shadow-sm"><Wallet size={15} className="text-zinc-900" /></div>
-          <span className="text-[15px] font-bold text-white tracking-tight">P'KEEP</span>
+          <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center">
+            <Wallet size={16} className="text-white" />
+          </div>
+          <div>
+            <span className="text-[14px] font-bold text-zinc-900 leading-none block">P'KEEP</span>
+            <span className="text-[10px] text-zinc-400">Finance Admin</span>
+          </div>
         </div>
       </div>
-      <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
-        <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-2 px-3 pt-2">เมนูหลัก</div>
-        {menuItems.slice(0, 4).map(item => {
-          const Icon = item.icon; const isActive = currentView === item.id;
-          return (
-            <button key={item.id} onClick={() => { setCurrentView(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-all text-left ${isActive ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}>
-              <Icon size={16} />
-              <span className="font-medium text-[13px]">{item.label}</span>
-            </button>
-          );
-        })}
-        <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-2 px-3 pt-4">การจัดการ</div>
-        {menuItems.slice(4).map(item => {
-          const Icon = item.icon; const isActive = currentView === item.id;
-          return (
-            <button key={item.id} onClick={() => { setCurrentView(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-all text-left ${isActive ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}>
-              <Icon size={16} />
-              <span className="font-medium text-[13px]">{item.label}</span>
-            </button>
-          );
-        })}
+
+      {/* Nav */}
+      <nav className="flex-1 py-3 px-3 overflow-y-auto space-y-4">
+        {menuGroups.map(group => (
+          <div key={group.label}>
+            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest px-2 mb-1">{group.label}</p>
+            <div className="space-y-0.5">
+              {group.items.map(item => {
+                const Icon = item.icon;
+                const isActive = currentView === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => { setCurrentView(item.id); setIsMobileMenuOpen(false); }}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-all text-left text-[13px] ${
+                      isActive
+                        ? 'bg-zinc-100 text-zinc-900 font-semibold'
+                        : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 font-medium'
+                    }`}
+                  >
+                    <Icon size={15} className={isActive ? 'text-zinc-900' : 'text-zinc-500'} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
-      <div className="p-3 border-t border-zinc-800">
-        <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-zinc-400 hover:text-rose-400 hover:bg-zinc-800 transition-colors text-[13px] font-medium">
-          <LogOut size={15} /> ออกจากระบบ
-        </button>
+
+      {/* User footer */}
+      <div className="p-3 border-t border-zinc-200">
+        <div className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-zinc-100 cursor-pointer group">
+          <div className="w-7 h-7 rounded-full bg-zinc-900 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+            {user.name.charAt(0)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-semibold text-zinc-900 truncate">{user.name}</p>
+            <p className="text-[10px] text-zinc-500 truncate">{user.role}</p>
+          </div>
+          <button onClick={handleLogout} className="text-zinc-400 hover:text-rose-500 transition-colors p-1 rounded">
+            <LogOut size={13} />
+          </button>
+        </div>
       </div>
     </>
   );
 
   return (
     <div className="min-h-screen bg-zinc-50 flex">
-      <aside className="hidden md:flex flex-col w-56 bg-zinc-900 text-zinc-300 fixed h-full z-10 border-r border-zinc-800"><SidebarContent /></aside>
-      {isMobileMenuOpen && <div className="md:hidden fixed inset-0 bg-black/60 z-40" onClick={() => setIsMobileMenuOpen(false)}></div>}
-      <aside className={`md:hidden fixed inset-y-0 left-0 w-56 bg-zinc-900 text-zinc-300 z-50 transform transition-transform duration-300 flex flex-col border-r border-zinc-800 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}><SidebarContent /></aside>
+      <aside className="hidden md:flex flex-col w-56 bg-white text-zinc-700 fixed h-full z-10 border-r border-zinc-200"><SidebarContent /></aside>
+      {isMobileMenuOpen && <div className="md:hidden fixed inset-0 bg-black/40 z-40" onClick={() => setIsMobileMenuOpen(false)}></div>}
+      <aside className={`md:hidden fixed inset-y-0 left-0 w-56 bg-white text-zinc-700 z-50 transform transition-transform duration-300 flex flex-col border-r border-zinc-200 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}><SidebarContent /></aside>
 
       <main className="flex-1 md:ml-56 flex flex-col min-h-screen">
         <header className="h-14 bg-white border-b border-zinc-200 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button className="md:hidden p-1.5 text-zinc-600 hover:bg-zinc-100 rounded-md" onClick={() => setIsMobileMenuOpen(true)}><Menu size={20} /></button>
-            <div className="hidden sm:flex items-center gap-2 text-sm text-zinc-500">
+            <div className="hidden sm:flex items-center gap-2 text-sm">
               <span className="font-semibold text-zinc-900">P'KEEP</span>
               <span className="text-zinc-300">/</span>
-              <span className="font-medium text-zinc-600">{menuItems.find(m => m.id === currentView)?.label}</span>
+              <span className="font-medium text-zinc-500">{menuGroups.flatMap(g => g.items).find(m => m.id === currentView)?.label}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold text-xs border border-zinc-700">
+            <div className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold text-xs">
               {user.name.charAt(0)}
             </div>
             <div className="hidden sm:block">
