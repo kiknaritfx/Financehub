@@ -80,11 +80,16 @@ route('get', '/api/businesses', async (req, res) => {
 });
 
 route('post', '/api/businesses', async (req, res) => {
-  const { name, type, petty_cash_max, icon, logo_type, status } = req.body;
+  const { name, type, petty_cash_max, icon, logo_type, status,
+          tax_name, tax_id, tax_address, departments, income_categories, expense_categories } = req.body;
   try {
+    const toArr = (v) => Array.isArray(v) ? v : (v != null ? [v] : null);
     const r = await pool.query(
-      'INSERT INTO businesses (name,type,petty_cash_max,icon,logo_type,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [name, type, petty_cash_max || 20000, icon || '🏪', logo_type || 'emoji', status || 'Active']
+      `INSERT INTO businesses (name,type,petty_cash_max,icon,logo_type,status,tax_name,tax_id,tax_address,departments,income_categories,expense_categories)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [name, type, petty_cash_max || 20000, icon || '🏪', logo_type || 'emoji', status || 'Active',
+       tax_name || null, tax_id || null, tax_address || null,
+       toArr(departments), toArr(income_categories), toArr(expense_categories)]
     );
     res.status(201).json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
