@@ -216,36 +216,84 @@ route('post', '/api/transactions', async (req, res) => {
 });
 
 route('put', '/api/transactions/:id', async (req, res) => {
-  const { category, amount, note, user_name } = req.body;
+  const { category, amount, note, type, date, petty_cash, department, user_name } = req.body;
   try {
     const old = (await pool.query('SELECT * FROM transactions WHERE id=$1', [req.params.id])).rows[0];
     if (!old) return res.status(404).json({ error: 'ไม่พบรายการ' });
+
+    const newType     = type     || old.type;
+    const newAmount   = amount != null ? Number(amount) : Number(old.amount);
+    const newPettyCash = petty_cash != null ? petty_cash : old.petty_cash;
+
     const result = await pool.query(
-      'UPDATE transactions SET category=COALESCE($1,category),amount=COALESCE($2,amount),note=COALESCE($3,note),is_edited=TRUE WHERE id=$4 RETURNING *',
-      [category || old.category, Number(amount) || old.amount, note !== undefined ? note : old.note, req.params.id]
+      `UPDATE transactions SET
+        category=COALESCE($1,category), amount=$2, note=COALESCE($3,note),
+        type=$4, date=COALESCE($5,date), petty_cash=$6,
+        department=$7, is_edited=TRUE
+       WHERE id=$8 RETURNING *`,
+      [category || old.category, newAmount,
+       note !== undefined ? note : old.note,
+       newType, date || null, newPettyCash,
+       department !== undefined ? department : old.department,
+       req.params.id]
     );
+
     // Audit log
     const changes = [];
-    if (amount && Number(amount) !== Number(old.amount))
-      changes.push(['จำนวนเงิน', `฿${Number(old.amount).toLocaleString()}`, `฿${Number(amount).toLocaleString()}`]);
+    if (newAmount !== Number(old.amount))
+      changes.push(['จำนวนเงิน', `฿${Number(old.amount).toLocaleString()}`, `฿${newAmount.toLocaleString()}`]);
     if (category && category !== old.category)
       changes.push(['หมวดหมู่', old.category, category]);
     if (note !== undefined && note !== old.note)
       changes.push(['หมายเหตุ', old.note || '-', note || '-']);
+    if (type && type !== old.type)
+      changes.push(['ประเภท', old.type, type]);
+    if (date && date !== old.date)
+      changes.push(['วันที่', String(old.date), date]);
+    if (petty_cash != null && petty_cash !== old.petty_cash)
+      changes.push(['ช่องทาง', old.petty_cash ? 'เงินสดย่อย' : 'โอนเงิน', petty_cash ? 'เงินสดย่อย' : 'โอนเงิน']);
+    if (department !== undefined && department !== old.department)
+      changes.push(['แผนก', old.department || '-', department || '-']);
     for (const [field, ov, nv] of changes) {
       await pool.query(
         `INSERT INTO audit_logs (transaction_id,user_name,action,field_changed,old_value,new_value) VALUES ($1,$2,'EDIT',$3,$4,$5)`,
         [req.params.id, user_name || 'Admin', field, ov, nv]
       ).catch(() => {});
     }
-    // อัปเดต petty_cash ถ้าเป็น Expense + petty_cash=true และ amount เปลี่ยน
-    if (amount && Number(amount) !== Number(old.amount) && old.type === 'Expense' && old.petty_cash) {
-      const diff = Number(old.amount) - Number(amount);
-      await pool.query(
-        'UPDATE businesses SET petty_cash=GREATEST(0, LEAST(petty_cash_max, petty_cash+$1)) WHERE id=$2',
-        [diff, old.business_id]
-      ).catch(() => {});
+
+    // อัปเดต business summary ถ้า type หรือ amount เปลี่ยน
+    const typeChanged   = type && type !== old.type;
+    const amountChanged = newAmount !== Number(old.amount);
+    if (typeChanged || amountChanged) {
+      // ย้อนรายการเดิม
+      if (old.type === 'Income') {
+        await pool.query('UPDATE businesses SET income=income-$1, profit=profit-$1 WHERE id=$2', [old.amount, old.business_id]).catch(()=>{});
+      } else {
+        await pool.query('UPDATE businesses SET expense=expense-$1, profit=profit+$1 WHERE id=$2', [old.amount, old.business_id]).catch(()=>{});
+      }
+      // บันทึกรายการใหม่
+      if (newType === 'Income') {
+        await pool.query('UPDATE businesses SET income=income+$1, profit=profit+$1 WHERE id=$2', [newAmount, old.business_id]).catch(()=>{});
+      } else {
+        await pool.query('UPDATE businesses SET expense=expense+$1, profit=profit-$1 WHERE id=$2', [newAmount, old.business_id]).catch(()=>{});
+      }
     }
+
+    // อัปเดต petty_cash
+    const oldWasPettyCash = old.type === 'Expense' && old.petty_cash;
+    const newIsPettyCash  = newType === 'Expense' && newPettyCash;
+    if (oldWasPettyCash || newIsPettyCash) {
+      let delta = 0;
+      if (oldWasPettyCash) delta += Number(old.amount); // คืนเดิม
+      if (newIsPettyCash)  delta -= newAmount;           // หักใหม่
+      if (delta !== 0) {
+        await pool.query(
+          'UPDATE businesses SET petty_cash=GREATEST(0, LEAST(petty_cash_max, petty_cash+$1)) WHERE id=$2',
+          [delta, old.business_id]
+        ).catch(() => {});
+      }
+    }
+
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
