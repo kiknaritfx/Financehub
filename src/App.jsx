@@ -971,6 +971,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   const [receiptType, setReceiptType] = useState('cash_bill'); // 'cash_bill' | 'tax_short' | 'tax_full'
   const [images, setImages] = useState([]); // { name, data, type, preview }
   const [loading, setLoading] = useState(false);
+  const [department, setDepartment] = useState('');
 
   const selectedBiz = businesses.find(b => String(b.id) === String(selectedBizId));
   const expenseCats = (Array.isArray(selectedBiz?.expense_categories) && selectedBiz.expense_categories.length > 0)
@@ -1017,6 +1018,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
     try {
       await transactionAPI.create({
         business_id: selectedBizId, type: 'Expense', category,
+        department: department || null,
         amount: Number(amount), date: datetime,
         petty_cash: paymentMethod === 'petty_cash',
         note: note + (receiptType !== 'cash_bill' ? ` [${receiptType === 'tax_short' ? 'ใบกำกับภาษีอย่างย่อ' : 'ใบกำกับภาษีฉบับเต็ม'}]` : ''),
@@ -1024,7 +1026,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
         created_by_name: user?.name || 'Admin'
       });
       onSuccess('บันทึกรายจ่ายสำเร็จ ✅');
-      setAmount(''); setNote(''); setSelectedBizId('');
+      setAmount(''); setNote(''); setSelectedBizId(''); setDepartment('');
       setImages([]);
     } catch (err) {
       alert('เกิดข้อผิดพลาด: ' + err.message);
@@ -1112,6 +1114,21 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-rose-600 text-xl font-black" placeholder="0.00" />
             </div>
           </div>
+
+          {/* แผนก */}
+          {selectedBiz && Array.isArray(selectedBiz.departments) && selectedBiz.departments.length > 0 && (
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">แผนก <span className="text-slate-400 font-normal">(ระบุแผนกที่รับผิดชอบค่าใช้จ่ายนี้)</span></label>
+              <div className="flex flex-wrap gap-2">
+                {selectedBiz.departments.map(d => (
+                  <button key={d} type="button" onClick={() => setDepartment(prev => prev === d ? '' : d)}
+                    className={`px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${department === d ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300'}`}>
+                    {department === d && <span className="mr-1">✓</span>}{d}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ช่องทางการจ่ายเงิน */}
           <div>
