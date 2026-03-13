@@ -1889,61 +1889,126 @@ const Transactions = ({ businesses, user }) => {
       )}
 
       {/* ─── IMAGE VIEWER MODAL ─── */}
-      <Modal isOpen={!!imageModal} onClose={() => setImageModal(null)} title={`หลักฐาน: ${imageModal?.txn_id || ''}`}>
+      <Modal isOpen={!!imageModal} onClose={() => setImageModal(null)} title={`รูปหลักฐาน: ${imageModal?.txn_id || ''}`}>
         <div className="space-y-4">
           {imagesLoading ? (
             <div className="flex justify-center py-12"><Spinner /></div>
-          ) : images.length === 0 ? (
-            <div className="text-center py-10">
-              <ImageIcon size={48} className="mx-auto text-slate-300 mb-3" />
-              <p className="text-slate-500 font-medium">ยังไม่มีรูปภาพหลักฐาน</p>
-              <p className="text-slate-400 text-sm mt-1">บันทึกรายจ่ายพร้อมแนบรูปได้ที่เมนู "จ่ายเงิน"</p>
-            </div>
           ) : (
             <>
-              <div className="bg-slate-900 rounded-2xl overflow-hidden aspect-video flex items-center justify-center relative">
-                <img src={images[activeImgIdx]?.file_data} alt={images[activeImgIdx]?.file_name}
-                  className="max-w-full max-h-full object-contain" />
-                {images.length > 1 && (
-                  <>
-                    <button onClick={() => setActiveImgIdx(p => Math.max(0, p - 1))}
-                      disabled={activeImgIdx === 0}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 disabled:opacity-30">
-                      ‹
-                    </button>
-                    <button onClick={() => setActiveImgIdx(p => Math.min(images.length - 1, p + 1))}
-                      disabled={activeImgIdx === images.length - 1}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 disabled:opacity-30">
-                      ›
-                    </button>
-                    <span className="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
-                      {activeImgIdx + 1} / {images.length}
-                    </span>
-                  </>
-                )}
-              </div>
+              {/* viewer */}
+              {images.length > 0 ? (
+                <>
+                  <div className="bg-slate-900 rounded-2xl overflow-hidden aspect-video flex items-center justify-center relative">
+                    <img src={images[activeImgIdx]?.file_data} alt={images[activeImgIdx]?.file_name}
+                      className="max-w-full max-h-full object-contain" />
+                    {images.length > 1 && (
+                      <>
+                        <button onClick={() => setActiveImgIdx(p => Math.max(0, p - 1))} disabled={activeImgIdx === 0}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 disabled:opacity-30">‹</button>
+                        <button onClick={() => setActiveImgIdx(p => Math.min(images.length - 1, p + 1))} disabled={activeImgIdx === images.length - 1}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 disabled:opacity-30">›</button>
+                        <span className="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
+                          {activeImgIdx + 1} / {images.length}
+                        </span>
+                      </>
+                    )}
+                  </div>
 
-              {images.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {images.map((img, idx) => (
-                    <button key={img.id} onClick={() => setActiveImgIdx(idx)}
-                      className={`shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${activeImgIdx === idx ? 'border-blue-500' : 'border-slate-200 hover:border-blue-300'}`}>
-                      <img src={img.file_data} alt="" className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
+                  {/* thumbnail strip */}
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {images.map((img, idx) => (
+                      <div key={img.id} className="relative shrink-0 group">
+                        <button onClick={() => setActiveImgIdx(idx)}
+                          className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all block ${activeImgIdx === idx ? 'border-blue-500' : 'border-slate-200 hover:border-blue-300'}`}>
+                          <img src={img.file_data} alt="" className="w-full h-full object-cover" />
+                        </button>
+                        {/* ปุ่มลบรูป */}
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm('ลบรูปนี้?')) return;
+                            await imageAPI.delete(img.id);
+                            const updated = images.filter(i => i.id !== img.id);
+                            setImages(updated);
+                            setActiveImgIdx(prev => Math.min(prev, Math.max(0, updated.length - 1)));
+                          }}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-600 text-white rounded-full text-xs items-center justify-center hidden group-hover:flex shadow">
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    {/* ปุ่มเพิ่มรูป */}
+                    {images.length < 5 && (
+                      <label className="shrink-0 w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all">
+                        <Plus size={18} className="text-slate-400" />
+                        <span className="text-xs text-slate-400 mt-0.5">เพิ่ม</span>
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          const remaining = 5 - images.length;
+                          const toUpload = files.slice(0, remaining);
+                          for (const file of toUpload) {
+                            const base64 = await new Promise((res) => {
+                              const reader = new FileReader();
+                              reader.onload = () => res(reader.result);
+                              reader.readAsDataURL(file);
+                            });
+                            const uploaded = await imageAPI.upload(imageModal.id, {
+                              file_name: file.name,
+                              file_data: base64,
+                              file_type: file.type,
+                              uploaded_by_name: 'Admin'
+                            });
+                            if (uploaded?.id) {
+                              // reload images
+                              const data = await imageAPI.getAll(imageModal.id);
+                              setImages(Array.isArray(data) ? data : []);
+                              setActiveImgIdx((Array.isArray(data) ? data : []).length - 1);
+                            }
+                          }
+                          e.target.value = '';
+                        }} />
+                      </label>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* ยังไม่มีรูป */
+                <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all">
+                  <UploadCloud size={32} className="text-slate-400 mb-2" />
+                  <span className="text-sm font-medium text-slate-500">คลิกเพื่ออัพโหลดรูปภาพ</span>
+                  <span className="text-xs text-slate-400">JPG, PNG, HEIC สูงสุด 5MB ต่อรูป (สูงสุด 5 รูป)</span>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {
+                    const files = Array.from(e.target.files || []).slice(0, 5);
+                    for (const file of files) {
+                      const base64 = await new Promise((res) => {
+                        const reader = new FileReader();
+                        reader.onload = () => res(reader.result);
+                        reader.readAsDataURL(file);
+                      });
+                      await imageAPI.upload(imageModal.id, {
+                        file_name: file.name, file_data: base64,
+                        file_type: file.type, uploaded_by_name: 'Admin'
+                      });
+                    }
+                    const data = await imageAPI.getAll(imageModal.id);
+                    setImages(Array.isArray(data) ? data : []);
+                    e.target.value = '';
+                  }} />
+                </label>
               )}
 
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-slate-500">
-                  <span className="font-medium">อัพโหลดโดย:</span> {images[activeImgIdx]?.uploaded_by_name || '—'}
-                  <span className="ml-3 text-slate-400">{images[activeImgIdx]?.created_at ? new Date(images[activeImgIdx].created_at).toLocaleString('th-TH') : ''}</span>
+              {/* info + download */}
+              {images.length > 0 && (
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-xs text-slate-500">
+                    <span className="font-medium">อัพโหลดโดย:</span> {images[activeImgIdx]?.uploaded_by_name || '—'}
+                    <span className="ml-2 text-slate-400">{images[activeImgIdx]?.created_at ? new Date(images[activeImgIdx].created_at).toLocaleString('th-TH') : ''}</span>
+                  </div>
+                  <button onClick={() => downloadImage(images[activeImgIdx])}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700">
+                    <Download size={14} /> ดาวน์โหลด
+                  </button>
                 </div>
-                <button onClick={() => downloadImage(images[activeImgIdx])}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
-                  <Download size={16} /> ดาวน์โหลดรูปนี้
-                </button>
-              </div>
+              )}
             </>
           )}
         </div>
