@@ -1098,6 +1098,13 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
           </div>
 
           <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">ชื่อค่าใช้จ่าย</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none" rows="2"
+              placeholder="เช่น ชื่อวัตถุดิบด่วน เนื่องจากของขาด..." />
+          </div>
+
+          <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">จำนวนเงิน</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">฿</span>
@@ -1195,13 +1202,6 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
                 <input type="file" accept="image/*" multiple className="hidden" onChange={handleImagePick} />
               </label>
             )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">หมายเหตุ</label>
-            <textarea value={note} onChange={e => setNote(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none" rows="2"
-              placeholder="เช่น ชื่อวัตถุดิบด่วน เนื่องจากของขาด..." />
           </div>
 
           <div className="flex justify-end pt-4 border-t border-slate-100">
