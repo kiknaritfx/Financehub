@@ -238,6 +238,14 @@ route('put', '/api/transactions/:id', async (req, res) => {
         [req.params.id, user_name || 'Admin', field, ov, nv]
       ).catch(() => {});
     }
+    // อัปเดต petty_cash ถ้าเป็น Expense + petty_cash=true และ amount เปลี่ยน
+    if (amount && Number(amount) !== Number(old.amount) && old.type === 'Expense' && old.petty_cash) {
+      const diff = Number(old.amount) - Number(amount);
+      await pool.query(
+        'UPDATE businesses SET petty_cash=GREATEST(0, LEAST(petty_cash_max, petty_cash+$1)) WHERE id=$2',
+        [diff, old.business_id]
+      ).catch(() => {});
+    }
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

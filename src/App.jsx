@@ -4603,7 +4603,17 @@ export default function App() {
       .catch(() => {});
   }, [user]);
 
-  const showToast = (msg, type = 'success') => setToast({ msg, type });
+  const refreshBusinesses = () => {
+    if (!user) return;
+    businessAPI.getAll()
+      .then(data => { if (Array.isArray(data)) setBusinesses(data); })
+      .catch(() => {});
+  };
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    refreshBusinesses();
+  };
 
   if (!user) {
     const params = new URLSearchParams(window.location.search);
