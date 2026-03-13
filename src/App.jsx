@@ -450,7 +450,7 @@ const LoginPage = ({ onLogin }) => {
       } else {
         // Fallback สำหรับ demo
         if (email === 'admin@pkeep.com' && password === 'admin1234') {
-          onLogin({ name: 'Admin P'KEEP', role: 'เจ้าของธุรกิจ', email });
+          onLogin({ name: "Admin P'KEEP", role: 'เจ้าของธุรกิจ', email });
         } else {
           setError(data.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
         }
@@ -458,7 +458,7 @@ const LoginPage = ({ onLogin }) => {
     } catch {
       // ถ้า API ไม่ตอบ ใช้ fallback
       if (email === 'admin@pkeep.com' && password === 'admin1234') {
-        onLogin({ name: 'Admin P'KEEP', role: 'เจ้าของธุรกิจ', email });
+        onLogin({ name: "Admin P'KEEP", role: 'เจ้าของธุรกิจ', email });
       } else {
         setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
       }
