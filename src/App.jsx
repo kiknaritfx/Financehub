@@ -4667,25 +4667,25 @@ export default function App() {
   ];
 
   const SidebarContent = () => (
-    <>
+    <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="h-14 flex items-center px-4 border-b border-zinc-200">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center">
-            <Wallet size={16} className="text-white" />
+      <div className="h-16 flex items-center px-4 border-b border-zinc-200">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-zinc-900 flex items-center justify-center shrink-0">
+            <Wallet size={18} className="text-white" />
           </div>
           <div>
-            <span className="text-[14px] font-bold text-zinc-900 leading-none block">P'KEEP</span>
-            <span className="text-[10px] text-zinc-400">Finance Admin</span>
+            <span className="text-[15px] font-bold text-zinc-900 leading-none block">P'KEEP</span>
+            <span className="text-[11px] text-zinc-400 leading-none mt-0.5 block">Finance Admin</span>
           </div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-3 px-3 overflow-y-auto space-y-4">
+      <nav className="flex-1 py-4 px-3 overflow-y-auto space-y-5">
         {menuGroups.map(group => (
           <div key={group.label}>
-            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest px-2 mb-1">{group.label}</p>
+            <p className="text-[11px] font-semibold text-zinc-400 px-2 mb-2">{group.label}</p>
             <div className="space-y-0.5">
               {group.items.map(item => {
                 const Icon = item.icon;
@@ -4694,14 +4694,14 @@ export default function App() {
                   <button
                     key={item.id}
                     onClick={() => { setCurrentView(item.id); setIsMobileMenuOpen(false); }}
-                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-all text-left text-[13px] ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
                       isActive
                         ? 'bg-zinc-100 text-zinc-900 font-semibold'
-                        : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 font-medium'
+                        : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 font-medium'
                     }`}
                   >
-                    <Icon size={15} className={isActive ? 'text-zinc-900' : 'text-zinc-500'} />
-                    {item.label}
+                    <Icon size={17} className={isActive ? 'text-zinc-900' : 'text-zinc-500'} />
+                    <span className="text-[14px]">{item.label}</span>
                   </button>
                 );
               })}
@@ -4711,21 +4711,21 @@ export default function App() {
       </nav>
 
       {/* User footer */}
-      <div className="p-3 border-t border-zinc-200">
-        <div className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-zinc-100 cursor-pointer group">
-          <div className="w-7 h-7 rounded-full bg-zinc-900 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+      <div className="border-t border-zinc-200 p-3">
+        <div className="flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-zinc-100 cursor-pointer">
+          <div className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center text-sm font-semibold shrink-0">
             {user.name.charAt(0)}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-zinc-900 truncate">{user.name}</p>
-            <p className="text-[10px] text-zinc-500 truncate">{user.role}</p>
+            <p className="text-[13px] font-semibold text-zinc-900 truncate leading-tight">{user.name}</p>
+            <p className="text-[11px] text-zinc-500 truncate">{user.role}</p>
           </div>
-          <button onClick={handleLogout} className="text-zinc-400 hover:text-rose-500 transition-colors p-1 rounded">
-            <LogOut size={13} />
+          <button onClick={handleLogout} className="text-zinc-400 hover:text-rose-500 transition-colors p-1 rounded-md hover:bg-zinc-200">
+            <LogOut size={14} />
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 
   return (
