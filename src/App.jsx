@@ -492,9 +492,6 @@ const LoginPage = ({ onLogin }) => {
               </button>
             </div>
           </div>
-          <div className="bg-zinc-50 border border-zinc-200 p-3 rounded-lg text-xs text-zinc-500">
-            <strong className="text-zinc-700">Demo:</strong> admin@pkeep.com / admin1234
-          </div>
           <button type="submit" disabled={loading} className="w-full bg-zinc-900 hover:bg-zinc-800 disabled:opacity-60 text-white font-medium py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors">
             {loading ? <><Spinner /> กำลังเข้าสู่ระบบ...</> : 'เข้าสู่ระบบ'}
           </button>
