@@ -430,8 +430,8 @@ const SetPasswordPage = ({ token }) => {
 
 const LoginPage = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('admin@pkeep.com');
-  const [password, setPassword] = useState('admin1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
