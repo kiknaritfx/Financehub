@@ -242,15 +242,15 @@ const nowTH = () => {
 const todayTH = () => nowTH().split('T')[0];
 
 const FEATURE_LIST = [
-  { id: 'Dashboard', label: 'ดู Dashboard' },
-  { id: 'Income', label: 'บันทึกรายรับ' },
-  { id: 'Expense', label: 'บันทึกรายจ่าย' },
-  { id: 'Transactions', label: 'ดูรายการธุรกรรม' },
-  { id: 'Edit', label: 'แก้ไขรายการ' },
-  { id: 'Delete', label: 'ลบรายการ' },
-  { id: 'Reports', label: 'ออกรายงาน' },
-  { id: 'Businesses', label: 'จัดการธุรกิจ' },
-  { id: 'Users', label: 'จัดการสิทธิ์ผู้ใช้' },
+  { id: 'Dashboard',    label: 'ภาพรวม',        menuIcon: 'LayoutDashboard' },
+  { id: 'Income',       label: 'รับเงิน',         menuIcon: 'TrendingUp' },
+  { id: 'Expense',      label: 'จ่ายเงิน',        menuIcon: 'TrendingDown' },
+  { id: 'Transactions', label: 'รายการธุรกรรม',   menuIcon: 'List' },
+  { id: 'Vouchers',     label: 'ใบสำคัญจ่าย',    menuIcon: 'FileEdit' },
+  { id: 'Documents',    label: 'เอกสาร',          menuIcon: 'FilePlus' },
+  { id: 'Reports',      label: 'รายงาน P&L',      menuIcon: 'FileText' },
+  { id: 'Businesses',   label: 'จัดการธุรกิจ',    menuIcon: 'Building2' },
+  { id: 'Users',        label: 'จัดการสิทธิ์',    menuIcon: 'Users' },
 ];
 
 // ─── SHARED COMPONENTS ───
@@ -3280,13 +3280,33 @@ const UserManagement = ({ businesses, onSuccess }) => {
                   {selectedFeatures.length === ALL_FEATURES.length ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {FEATURE_LIST.map(f => (
-                  <label key={f.id} className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${selectedFeatures.includes(f.id) ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                    <input type="checkbox" checked={selectedFeatures.includes(f.id)} onChange={() => toggleFeat(f.id)} className="w-4 h-4 text-emerald-600 rounded" />
-                    <span className="text-sm">{f.icon} {f.label}</span>
-                  </label>
-                ))}
+              {/* Mini sidebar preview */}
+              <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                <div className="px-3 py-2 bg-zinc-50 border-b border-slate-200 flex items-center gap-2">
+                  <div className="w-5 h-5 rounded bg-zinc-900 flex items-center justify-center"><Wallet size={11} className="text-white" /></div>
+                  <span className="text-[11px] font-bold text-zinc-700">P'KEEP Sidebar Preview</span>
+                </div>
+                <div className="p-2 space-y-0.5">
+                  {(() => {
+                    const IconMap = { LayoutDashboard, TrendingUp, TrendingDown, List, FileEdit, FilePlus, FileText, Building2, Users };
+                    return FEATURE_LIST.map(f => {
+                      const Icon = IconMap[f.menuIcon] || LayoutDashboard;
+                      const active = selectedFeatures.includes(f.id);
+                      return (
+                        <button key={f.id} type="button" onClick={() => toggleFeat(f.id)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${active
+                            ? 'bg-zinc-100 text-zinc-900 border border-zinc-200'
+                            : 'text-slate-300 hover:bg-slate-50'}`}>
+                          <Icon size={16} className={active ? 'text-zinc-600' : 'text-slate-300'} />
+                          <span className={active ? '' : 'line-through decoration-slate-200'}>{f.label}</span>
+                          <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'}`}>
+                            {active ? 'เปิด' : 'ปิด'}
+                          </span>
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
             </section>
           </div>
@@ -4930,20 +4950,19 @@ export default function App() {
     'Income':        'income',
     'Expense':       'expense',
     'Transactions':  'transactions',
+    'Vouchers':      'payment_vouchers',
+    'Documents':     'documents',
     'Reports':       'reports',
     'Businesses':    'businesses',
     'Users':         'users',
   };
   const userFeatures = user?.features || [];
   const canAccess = (menuId) => {
-    if (isOwner) return true; // เจ้าของเห็นทั้งหมด
-    // หา feature ที่ map กับ menuId นี้
+    if (isOwner) return true;
     const entry = Object.entries(FEATURE_MENU_MAP).find(([,v]) => v === menuId);
-    if (!entry) return true; // ไม่มีใน map (เช่น payment_vouchers, documents) → ใช้ feature Expense/Income แทน
+    if (!entry) return true;
     return userFeatures.includes(entry[0]);
   };
-  // payment_vouchers และ documents ให้ดูตาม Expense feature
-  const canAccessDocs = isOwner || userFeatures.includes('Expense') || userFeatures.includes('Income');
 
   const allMenuGroups = [
     {
@@ -4975,10 +4994,7 @@ export default function App() {
   const menuGroups = allMenuGroups
     .map(group => ({
       ...group,
-      items: group.items.filter(item => {
-        if (item.id === 'payment_vouchers' || item.id === 'documents') return canAccessDocs;
-        return canAccess(item.id);
-      })
+      items: group.items.filter(item => canAccess(item.id))
     }))
     .filter(group => group.items.length > 0);
 
