@@ -432,19 +432,49 @@ route('get', '/api/reports/pl', async (req, res) => {
     if (business_id) { w += ` AND business_id=$${i++}`; p.push(business_id); }
     if (start) { w += ` AND date>=$${i++}`; p.push(start); }
     if (end) { w += ` AND date<=$${i++}`; p.push(end + ' 23:59:59'); }
-    const [ir, er, ic, ec, id_, ed] = await Promise.all([
+    const [ir, er, ic, ec, id_, ed, icTxn, ecTxn, idTxn, edTxn] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Income'`, p),
       pool.query(`SELECT COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Expense'`, p),
       pool.query(`SELECT category,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Income' GROUP BY category ORDER BY total DESC`, p),
       pool.query(`SELECT category,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Expense' GROUP BY category ORDER BY total DESC`, p),
       pool.query(`SELECT COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Income' GROUP BY department ORDER BY total DESC`, p),
       pool.query(`SELECT COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Expense' GROUP BY department ORDER BY total DESC`, p),
+      // sub-items: income by category
+      pool.query(`SELECT id,date::date as date,description,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Income' ORDER BY category,date DESC`, p),
+      // sub-items: expense by category
+      pool.query(`SELECT id,date::date as date,description,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Expense' ORDER BY category,date DESC`, p),
+      // sub-items: income by department
+      pool.query(`SELECT id,date::date as date,description,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Income' ORDER BY department,date DESC`, p),
+      // sub-items: expense by department
+      pool.query(`SELECT id,date::date as date,description,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Expense' ORDER BY department,date DESC`, p),
     ]);
     const income = parseFloat(ir.rows[0].total), expense = parseFloat(er.rows[0].total);
+
+    // Group sub-items by category/department
+    const groupBy = (rows, key) => rows.reduce((acc, row) => {
+      const k = row[key] || '(ไม่ระบุ)';
+      if (!acc[k]) acc[k] = [];
+      acc[k].push(row);
+      return acc;
+    }, {});
+
+    const icByCategory = groupBy(icTxn.rows, 'category');
+    const ecByCategory = groupBy(ecTxn.rows, 'category');
+    const icByDept = groupBy(idTxn.rows, 'department');
+    const ecByDept = groupBy(edTxn.rows, 'department');
+
+    // Attach sub_items to each group row
+    const attachSubItems = (rows, groupedMap, key) => rows.map(r => ({
+      ...r,
+      sub_items: groupedMap[r[key] || '(ไม่ระบุ)'] || []
+    }));
+
     res.json({
       income, expense, profit: income - expense,
-      income_items: ic.rows, expense_items: ec.rows,
-      income_by_dept: id_.rows, expense_by_dept: ed.rows
+      income_items: attachSubItems(ic.rows, icByCategory, 'category'),
+      expense_items: attachSubItems(ec.rows, ecByCategory, 'category'),
+      income_by_dept: attachSubItems(id_.rows, icByDept, 'department'),
+      expense_by_dept: attachSubItems(ed.rows, ecByDept, 'department'),
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

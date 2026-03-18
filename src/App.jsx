@@ -2748,21 +2748,74 @@ const Reports = ({ businesses }) => {
 
   useEffect(() => { load(); }, [selectedBiz, startDate, endDate]);
 
-  // Helper: progress bar row
-  const BarRow = ({ label, total, base, color }) => {
+  // Helper: expandable row with dropdown sub-items
+  const BarRow = ({ label, total, base, color, subItems = [] }) => {
+    const [open, setOpen] = useState(false);
     const pct = base > 0 ? Math.round(total / base * 100) : 0;
+    const hasItems = subItems.length > 0;
     return (
-      <div className="px-4 py-3 hover:bg-slate-50 transition-colors">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-sm text-slate-700 font-medium truncate pr-2">{label}</span>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className={`font-bold text-sm ${color === 'emerald' ? 'text-emerald-600' : 'text-rose-600'}`}>฿{fmt(total)}</span>
-            <span className="text-xs text-slate-400 w-8 text-right">{pct}%</span>
+      <div className={open ? (color === 'emerald' ? 'bg-emerald-50/40' : 'bg-rose-50/40') : ''}>
+        {/* Main row */}
+        <div
+          className={`px-4 py-3 transition-colors ${hasItems ? 'cursor-pointer hover:bg-slate-50' : ''}`}
+          onClick={() => hasItems && setOpen(v => !v)}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2 min-w-0">
+              {hasItems && (
+                <span className={`transition-transform duration-200 shrink-0 inline-block ${open ? 'rotate-90' : ''} ${color === 'emerald' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  ▶
+                </span>
+              )}
+              <span className="text-sm text-slate-700 font-medium truncate">{label}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`font-bold text-sm ${color === 'emerald' ? 'text-emerald-600' : 'text-rose-600'}`}>฿{fmt(total)}</span>
+              <span className="text-xs text-slate-400 w-8 text-right">{pct}%</span>
+              {hasItems && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${color === 'emerald' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                  {subItems.length}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${color === 'emerald' ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{width: `${pct}%`}} />
           </div>
         </div>
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full ${color === 'emerald' ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{width: `${pct}%`}} />
-        </div>
+
+        {/* Dropdown sub-items */}
+        {open && hasItems && (
+          <div className={`border-t ${color === 'emerald' ? 'border-emerald-100 bg-emerald-50/60' : 'border-rose-100 bg-rose-50/60'}`}>
+            <div className={`px-4 py-2 flex items-center justify-between border-b ${color === 'emerald' ? 'border-emerald-100' : 'border-rose-100'}`}>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">รายการค่าใช้จ่าย : {subItems.length} รายการ</span>
+            </div>
+            <div className="divide-y divide-white/60 max-h-64 overflow-y-auto">
+              {subItems.map((tx, idx) => (
+                <div key={tx.id || idx} className="px-5 py-2.5 flex items-center justify-between gap-3 hover:bg-white/60 transition-colors">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-slate-700 font-medium truncate">{tx.description || '(ไม่ระบุ)'}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-slate-400">
+                        {tx.date ? new Date(tx.date).toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'2-digit'}) : ''}
+                      </span>
+                      {tx.department && tx.department !== '(ไม่ระบุแผนก)' && (
+                        <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{tx.department}</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`font-bold text-sm shrink-0 ${color === 'emerald' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    ฿{fmt(tx.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className={`px-4 py-2 flex justify-between items-center border-t ${color === 'emerald' ? 'border-emerald-100' : 'border-rose-100'}`}>
+              <span className="text-xs text-slate-400">รวมทั้งหมด</span>
+              <span className={`text-xs font-bold ${color === 'emerald' ? 'text-emerald-700' : 'text-rose-700'}`}>฿{fmt(total)}</span>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -2854,9 +2907,9 @@ const Reports = ({ businesses }) => {
                   <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">{data.income_items?.length || 0} รายการ</span>
                 </div>
                 {data.income_items?.length > 0 ? (
-                  <div className="divide-y divide-slate-100">
+                  <div>
                     {data.income_items.map((item, i) => (
-                      <BarRow key={i} label={item.category || '(ไม่ระบุ)'} total={parseFloat(item.total)} base={data.income} color="emerald" />
+                      <BarRow key={i} label={item.category || '(ไม่ระบุ)'} total={parseFloat(item.total)} base={data.income} color="emerald" subItems={item.sub_items || []} />
                     ))}
                   </div>
                 ) : (
@@ -2870,9 +2923,9 @@ const Reports = ({ businesses }) => {
                   <span className="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">{data.expense_items?.length || 0} รายการ</span>
                 </div>
                 {data.expense_items?.length > 0 ? (
-                  <div className="divide-y divide-slate-100">
+                  <div>
                     {data.expense_items.map((item, i) => (
-                      <BarRow key={i} label={item.category || '(ไม่ระบุ)'} total={parseFloat(item.total)} base={data.expense} color="rose" />
+                      <BarRow key={i} label={item.category || '(ไม่ระบุ)'} total={parseFloat(item.total)} base={data.expense} color="rose" subItems={item.sub_items || []} />
                     ))}
                   </div>
                 ) : (
@@ -2892,9 +2945,9 @@ const Reports = ({ businesses }) => {
                   <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">{data.income_by_dept?.length || 0} แผนก</span>
                 </div>
                 {data.income_by_dept?.length > 0 ? (
-                  <div className="divide-y divide-slate-100">
+                  <div>
                     {data.income_by_dept.map((item, i) => (
-                      <BarRow key={i} label={item.department} total={parseFloat(item.total)} base={data.income} color="emerald" />
+                      <BarRow key={i} label={item.department} total={parseFloat(item.total)} base={data.income} color="emerald" subItems={item.sub_items || []} />
                     ))}
                   </div>
                 ) : (
@@ -2908,9 +2961,9 @@ const Reports = ({ businesses }) => {
                   <span className="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">{data.expense_by_dept?.length || 0} แผนก</span>
                 </div>
                 {data.expense_by_dept?.length > 0 ? (
-                  <div className="divide-y divide-slate-100">
+                  <div>
                     {data.expense_by_dept.map((item, i) => (
-                      <BarRow key={i} label={item.department} total={parseFloat(item.total)} base={data.expense} color="rose" />
+                      <BarRow key={i} label={item.department} total={parseFloat(item.total)} base={data.expense} color="rose" subItems={item.sub_items || []} />
                     ))}
                   </div>
                 ) : (
