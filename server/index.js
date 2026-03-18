@@ -440,13 +440,13 @@ route('get', '/api/reports/pl', async (req, res) => {
       pool.query(`SELECT COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Income' GROUP BY department ORDER BY total DESC`, p),
       pool.query(`SELECT COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Expense' GROUP BY department ORDER BY total DESC`, p),
       // sub-items: income by category
-      pool.query(`SELECT id,date::date as date,description,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Income' ORDER BY category,date DESC`, p),
+      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Income' ORDER BY category,date DESC`, p),
       // sub-items: expense by category
-      pool.query(`SELECT id,date::date as date,description,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Expense' ORDER BY category,date DESC`, p),
+      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Expense' ORDER BY category,date DESC`, p),
       // sub-items: income by department
-      pool.query(`SELECT id,date::date as date,description,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Income' ORDER BY department,date DESC`, p),
+      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Income' ORDER BY department,date DESC`, p),
       // sub-items: expense by department
-      pool.query(`SELECT id,date::date as date,description,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Expense' ORDER BY department,date DESC`, p),
+      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Expense' ORDER BY department,date DESC`, p),
     ]);
     const income = parseFloat(ir.rows[0].total), expense = parseFloat(er.rows[0].total);
 

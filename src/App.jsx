@@ -2794,7 +2794,7 @@ const Reports = ({ businesses }) => {
               {subItems.map((tx, idx) => (
                 <div key={tx.id || idx} className="px-5 py-2.5 flex items-center justify-between gap-3 hover:bg-white/60 transition-colors">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-slate-700 font-medium truncate">{tx.description || '(ไม่ระบุ)'}</p>
+                    <p className="text-sm text-slate-700 font-medium truncate">{tx.note || '(ไม่ระบุ)'}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs text-slate-400">
                         {tx.date ? new Date(tx.date).toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'2-digit'}) : ''}
