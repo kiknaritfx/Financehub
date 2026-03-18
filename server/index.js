@@ -75,8 +75,16 @@ route('post', '/api/login', async (req, res) => {
 
 // ─── BUSINESSES ───
 route('get', '/api/businesses', async (req, res) => {
-  try { res.json((await pool.query('SELECT * FROM businesses ORDER BY id')).rows); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  try {
+    const { ids } = req.query;
+    if (ids) {
+      const idArr = ids.split(',').map(Number).filter(Boolean);
+      if (idArr.length === 0) return res.json([]);
+      res.json((await pool.query('SELECT * FROM businesses WHERE id = ANY($1::int[]) ORDER BY id', [idArr])).rows);
+    } else {
+      res.json((await pool.query('SELECT * FROM businesses ORDER BY id')).rows);
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 route('post', '/api/businesses', async (req, res) => {

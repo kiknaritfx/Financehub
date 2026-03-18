@@ -4867,17 +4867,20 @@ export default function App() {
     setUser(null);
   };
 
-  // Load businesses on login
+  // Load businesses on login — กรองตาม business_ids ของ user (ยกเว้นเจ้าของธุรกิจ)
+  const isOwner = user?.role === 'เจ้าของธุรกิจ';
+  const userBizIds = isOwner ? null : (user?.business_ids || []);
+
   useEffect(() => {
     if (!user) return;
-    businessAPI.getAll()
+    businessAPI.getAll(userBizIds)
       .then(data => { if (Array.isArray(data)) setBusinesses(data); })
       .catch(() => {});
   }, [user]);
 
   const refreshBusinesses = () => {
     if (!user) return;
-    businessAPI.getAll()
+    businessAPI.getAll(userBizIds)
       .then(data => { if (Array.isArray(data)) setBusinesses(data); })
       .catch(() => {});
   };
@@ -4921,7 +4924,28 @@ export default function App() {
     }
   };
 
-  const menuGroups = [
+  // Map feature id → menu id
+  const FEATURE_MENU_MAP = {
+    'Dashboard':     'dashboard',
+    'Income':        'income',
+    'Expense':       'expense',
+    'Transactions':  'transactions',
+    'Reports':       'reports',
+    'Businesses':    'businesses',
+    'Users':         'users',
+  };
+  const userFeatures = user?.features || [];
+  const canAccess = (menuId) => {
+    if (isOwner) return true; // เจ้าของเห็นทั้งหมด
+    // หา feature ที่ map กับ menuId นี้
+    const entry = Object.entries(FEATURE_MENU_MAP).find(([,v]) => v === menuId);
+    if (!entry) return true; // ไม่มีใน map (เช่น payment_vouchers, documents) → ใช้ feature Expense/Income แทน
+    return userFeatures.includes(entry[0]);
+  };
+  // payment_vouchers และ documents ให้ดูตาม Expense feature
+  const canAccessDocs = isOwner || userFeatures.includes('Expense') || userFeatures.includes('Income');
+
+  const allMenuGroups = [
     {
       label: 'General',
       items: [
@@ -4947,6 +4971,16 @@ export default function App() {
       ]
     },
   ];
+
+  const menuGroups = allMenuGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => {
+        if (item.id === 'payment_vouchers' || item.id === 'documents') return canAccessDocs;
+        return canAccess(item.id);
+      })
+    }))
+    .filter(group => group.items.length > 0);
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">

@@ -17,7 +17,7 @@ export const authAPI = {
 };
 
 export const businessAPI = {
-  getAll: () => request('/businesses'),
+  getAll: (ids) => ids && ids.length > 0 ? request(`/businesses?ids=${ids.join(',')}`) : request('/businesses'),
   create: (data) => request('/businesses', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/businesses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id) => request(`/businesses/${id}`, { method: 'DELETE' }),
