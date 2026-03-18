@@ -4880,6 +4880,7 @@ export default function App() {
   const handleLogin = (userData) => {
     localStorage.setItem('fh_user', JSON.stringify(userData));
     setUser(userData);
+    setCurrentView('dashboard');
   };
 
   const handleLogout = () => {
