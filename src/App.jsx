@@ -2725,19 +2725,40 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
 // ─── REPORTS ───
 const Reports = ({ businesses }) => {
   const [selectedBiz, setSelectedBiz] = useState('all');
-  const [startDate, setStartDate] = useState(todayTH().slice(0,7) + '-01');
-  const [endDate, setEndDate] = useState(todayTH());
+  const [period, setPeriod] = useState('เดือนนี้');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('category'); // 'category' | 'department'
+  const [activeTab, setActiveTab] = useState('category');
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
   const activeBiz = businesses.filter(b => b.status === 'Active');
+
+  const getDateRange = (p) => {
+    const now = new Date(new Date().getTime() + 7*60*60*1000);
+    const today = now.toISOString().split('T')[0];
+    if (p === 'วันนี้') return { start: today, end: today };
+    if (p === 'สัปดาห์นี้') {
+      const day = now.getDay();
+      const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      return { start: mon.toISOString().split('T')[0], end: today };
+    }
+    if (p === 'เดือนที่แล้ว') {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { start: first.toISOString().split('T')[0], end: last.toISOString().split('T')[0] };
+    }
+    if (p === 'กำหนดเอง') return { start: customStart || today, end: customEnd || today };
+    // เดือนนี้ (default)
+    return { start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0], end: today };
+  };
 
   const load = async () => {
     setLoading(true); setError('');
     try {
-      const params = { start: startDate, end: endDate };
+      const { start, end } = getDateRange(period);
+      const params = { start, end };
       if (selectedBiz !== 'all') params.business_id = selectedBiz;
       const result = await reportAPI.getPL(params);
       setData(result);
@@ -2746,7 +2767,7 @@ const Reports = ({ businesses }) => {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [selectedBiz, startDate, endDate]);
+  useEffect(() => { load(); }, [selectedBiz, period, customStart, customEnd]);
 
   // Helper: expandable row with dropdown sub-items
   const BarRow = ({ label, total, base, color, subItems = [] }) => {
@@ -2850,20 +2871,26 @@ const Reports = ({ businesses }) => {
             ))}
           </div>
         </div>
-        {/* date range — stack on mobile */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="flex items-center gap-2 flex-1 bg-slate-50 rounded-xl border border-slate-200 px-3 py-2">
-            <CalendarDays size={14} className="text-slate-400 shrink-0" />
-            <span className="text-xs text-slate-400 shrink-0">จาก</span>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-              className="bg-transparent outline-none text-sm text-slate-700 font-medium w-full" />
+        {/* Period picker — same style as Dashboard */}
+        <div className="flex flex-col gap-2">
+          <div className="flex bg-slate-100 rounded-lg p-1 gap-0.5">
+            {['วันนี้', 'สัปดาห์นี้', 'เดือนนี้', 'เดือนที่แล้ว', 'กำหนดเอง'].map(p => (
+              <button key={p} type="button" onClick={() => setPeriod(p)}
+                className={`flex-1 px-2 py-1.5 text-xs rounded-md transition-colors font-medium whitespace-nowrap ${period === p ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-200'}`}>
+                {p}
+              </button>
+            ))}
           </div>
-          <div className="flex items-center gap-2 flex-1 bg-slate-50 rounded-xl border border-slate-200 px-3 py-2">
-            <CalendarDays size={14} className="text-slate-400 shrink-0" />
-            <span className="text-xs text-slate-400 shrink-0">ถึง</span>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-              className="bg-transparent outline-none text-sm text-slate-700 font-medium w-full" />
-          </div>
+          {period === 'กำหนดเอง' && (
+            <div className="flex items-center gap-2 bg-slate-50 rounded-xl border border-slate-200 px-3 py-2">
+              <CalendarDays size={14} className="text-slate-400 shrink-0" />
+              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                className="bg-transparent outline-none text-sm text-slate-700 font-medium" />
+              <span className="text-slate-400 text-xs">—</span>
+              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                className="bg-transparent outline-none text-sm text-slate-700 font-medium" />
+            </div>
+          )}
         </div>
       </div>
 
