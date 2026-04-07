@@ -582,14 +582,17 @@ const Dashboard = ({ setCurrentView, businesses = [] }) => {
       const results = await Promise.all(activeBiz.map(async (biz) => {
         try {
           const pl = await reportAPI.getPL({ business_id: biz.id, start, end });
-          return { ...biz, income: Number(pl.income)||0, expense: Number(pl.expense)||0, profit: Number(pl.profit)||0 };
+          // คง petty_cash จาก biz เสมอ ไม่ว่าจะมีข้อมูล P&L หรือไม่
+          return { ...biz, income: Number(pl.income)||0, expense: Number(pl.expense)||0, profit: Number(pl.profit)||0,
+            petty_cash: biz.petty_cash, petty_cash_max: biz.petty_cash_max };
         } catch {
-          return { ...biz, income: 0, expense: 0, profit: 0 };
+          return { ...biz, income: 0, expense: 0, profit: 0,
+            petty_cash: biz.petty_cash, petty_cash_max: biz.petty_cash_max };
         }
       }));
 
-      const withData = results.filter(b => b.income > 0 || b.expense > 0);
-      setBizData(withData.length > 0 ? withData : results);
+      // แสดงทุก biz เสมอ (ไม่ซ่อนถ้าไม่มีข้อมูลเดือนนี้)
+      setBizData(results);
     } catch {
       setBizData([]);
     } finally {
@@ -3432,8 +3435,8 @@ const generatePDF = (doc, biz, settings) => {
 <body>
 <div class="header">
   <div>
-    <div class="doc-title">${typeInfo.label}</div>
-    <div class="doc-sub">${typeInfo.labelEn} (ต้นฉบับ / original)</div>
+    <div class="doc-title">${doc.doc_type === 'RC' ? 'ใบเสร็จรับเงิน/ใบกำกับภาษี' : typeInfo.label}</div>
+    <div class="doc-sub">${doc.doc_type === 'RC' ? 'Receipt / Tax Invoice (ต้นฉบับ / Original)' : typeInfo.labelEn + ' (ต้นฉบับ / original)'}</div>
   </div>
   <div class="logo-box">${biz?.icon && biz.icon.startsWith('data:') ? `<img src="${biz.icon}" alt="logo"/>` : (biz?.icon || '🏪')}</div>
 </div>
@@ -3497,6 +3500,19 @@ const generatePDF = (doc, biz, settings) => {
   </div>
 </div>
 
+${doc.doc_type === 'RC' ? `
+<div class="footer" style="grid-template-columns:1fr 1fr;">
+  <div class="sig-box">
+    <div class="sig-line"></div>
+    <div class="sig-name">ผู้จ่ายเงิน / Paid by</div>
+    <div class="sig-label">วันที่ / Date ................................</div>
+  </div>
+  <div class="sig-box">
+    ${sig ? `<img class="sig-img" src="${sig}" alt="signature"/>` : '<div class="sig-line"></div>'}
+    <div class="sig-name">ผู้รับเงิน / Received by</div>
+    <div class="sig-label">วันที่ / Date ................................</div>
+  </div>
+</div>` : `
 <div class="footer">
   <div class="sig-box">
     ${sig ? `<img class="sig-img" src="${sig}" alt="signature"/>` : '<div class="sig-line"></div>'}
@@ -3505,10 +3521,10 @@ const generatePDF = (doc, biz, settings) => {
   </div>
   <div class="sig-box">
     <div class="sig-line"></div>
-    <div class="sig-name">${doc.doc_type === 'RC' ? 'ผู้รับเงิน / Received by' : 'ผู้รับใบแจ้งหนี้ / Accepted by'}</div>
+    <div class="sig-name">ผู้รับใบแจ้งหนี้ / Accepted by</div>
     <div class="sig-label">วันที่ / Date ................................</div>
   </div>
-</div>
+</div>`}
 </body></html>`;
 
   const win = window.open('', '_blank');
@@ -3863,7 +3879,7 @@ const DocumentSettings = ({ businesses, onClose }) => {
         await documentAPI.saveSettings({
           business_id: bizId, doc_type: t.id,
           prefix: s.prefix, running_number: Number(s.running_number) || 1,
-          signature_image: s.signature_image || sigPreview[t.id] || null,
+          signature_image: 'signature_image' in s ? s.signature_image : (sigPreview[t.id] || null),
         });
       }
       onClose(true);
