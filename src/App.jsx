@@ -3389,7 +3389,7 @@ const formatDocDate = (dateStr) => {
 const generatePDF = (doc, biz, settings) => {
   const typeInfo = DOC_TYPES.find(t => t.id === doc.doc_type) || DOC_TYPES[0];
   const items = Array.isArray(doc.items) ? doc.items : JSON.parse(doc.items || '[]');
-  const sig = settings?.signature_image || doc.signature_image;
+  const sig = (settings && 'signature_image' in settings) ? settings.signature_image : doc.signature_image;
   const issuerAddress = biz?.tax_address || '135/9 หมู่ที่ 10 ตำบลสุเทพ อำเภอเมืองเชียงใหม่ จ.เชียงใหม่ 50200';
   const issuerTaxId = biz?.tax_id || biz?.business_tax_id || '';
   const issuerName = biz?.tax_name || biz?.name || '';
@@ -3503,6 +3503,7 @@ const generatePDF = (doc, biz, settings) => {
 ${doc.doc_type === 'RC' ? `
 <div class="footer" style="grid-template-columns:1fr 1fr;">
   <div class="sig-box">
+    ${sig ? '<div style="height:64px;display:block;"></div>' : ''}
     <div class="sig-line"></div>
     <div class="sig-name">ผู้จ่ายเงิน / Paid by</div>
     <div class="sig-label">วันที่ / Date ................................</div>
