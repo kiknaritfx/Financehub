@@ -3849,14 +3849,18 @@ const DocumentSettings = ({ businesses, onClose }) => {
 
   useEffect(() => {
     if (!bizId) return;
+    setSigPreview({}); // reset ก่อนทุกครั้งที่โหลดใหม่
     documentAPI.getSettings(bizId).then(rows => {
       const map = {};
+      const newSigPreview = {};
       DOC_TYPES.forEach(t => {
         const row = rows.find(r => r.doc_type === t.id);
-        map[t.id] = { prefix: row?.prefix || t.id, running_number: row?.running_number || 1 };
-        if (row?.signature_image) setSigPreview(p => ({ ...p, [t.id]: row.signature_image }));
+        map[t.id] = { prefix: row?.prefix || t.id, running_number: row?.running_number || 1,
+          signature_image: row?.signature_image || null };
+        newSigPreview[t.id] = row?.signature_image || null; // set เสมอ ไม่ว่าจะมีหรือไม่
       });
       setSettings(map);
+      setSigPreview(newSigPreview);
     }).catch(() => {});
   }, [bizId]);
 
