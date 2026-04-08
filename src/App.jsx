@@ -40,13 +40,34 @@ const rvAPI = {
     localStorage.setItem('fh_receipt_vouchers', JSON.stringify(list)); return rv;
   },
   delete: (id) => { localStorage.setItem('fh_receipt_vouchers', JSON.stringify(rvAPI.getAll().filter(r => r.id !== id))); },
-  getSettings: () => { try { return JSON.parse(localStorage.getItem('fh_rv_settings') || '{}'); } catch { return {}; } },
-  saveSettings: (s) => { localStorage.setItem('fh_rv_settings', JSON.stringify(s)); return s; },
+  // settings แยกตาม bizId — prefix/running เป็น global, sig/payer แยกตาม biz
+  getSettings: (bizId) => {
+    try {
+      const global = JSON.parse(localStorage.getItem('fh_rv_settings') || '{}');
+      if (!bizId) return global;
+      const biz = JSON.parse(localStorage.getItem('fh_rv_settings_' + bizId) || '{}');
+      return { ...global, ...biz };
+    } catch { return {}; }
+  },
+  saveSettings: (s, bizId) => {
+    if (!bizId) {
+      localStorage.setItem('fh_rv_settings', JSON.stringify(s));
+    } else {
+      // global: prefix, running
+      const global = JSON.parse(localStorage.getItem('fh_rv_settings') || '{}');
+      localStorage.setItem('fh_rv_settings', JSON.stringify({ ...global, prefix: s.prefix, running: s.running }));
+      // per-biz: payer_name, payer_sig, receiver_sig
+      localStorage.setItem('fh_rv_settings_' + bizId, JSON.stringify({
+        payer_name: s.payer_name, payer_sig: s.payer_sig, receiver_sig: s.receiver_sig,
+      }));
+    }
+    return s;
+  },
 };
 
 // ─── GENERATE RECEIPT VOUCHER PDF ───────────────────────────────────────
 const generateRVPDF = (rv, biz) => {
-  const settings = rvAPI.getSettings();
+  const settings = rvAPI.getSettings(rv.business_id);
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
   const gross = Number(rv.amount) || 0;
   const whtRate = Number(rv.wht_rate) || 0;
@@ -57,6 +78,9 @@ const generateRVPDF = (rv, biz) => {
   const receiverSig = settings.receiver_sig || '';
   const payerName = settings.payer_name || '';
   const payerSig = settings.payer_sig || '';
+  const rvItems = Array.isArray(rv.items) && rv.items.length > 0
+    ? rv.items
+    : [{ description: rv.description || '', amount: rv.amount || 0 }];
   const idStr = (rv.id_number || '').replace(/\D/g, '').padEnd(13, ' ');
   const idBoxes = idStr.split('').map(c => `<span class="id-box">${c.trim() || '&nbsp;'}</span>`).join('');
   const issueDate = rv.issue_date ? new Date(rv.issue_date).toLocaleDateString('th-TH', {day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
@@ -157,11 +181,12 @@ tr.net-row td.num{color:#fff;}
     <th style="width:150px">จำนวนเงิน (บาท)</th>
   </tr></thead>
   <tbody>
+    ${rvItems.map((it, i) => `
     <tr>
-      <td style="text-align:center">1</td>
-      <td>${rv.description || ''}</td>
-      <td class="num">${fmt(gross)}</td>
-    </tr>
+      <td style="text-align:center">${i + 1}</td>
+      <td>${it.description || ''}</td>
+      <td class="num">${fmt(Number(it.amount) || 0)}</td>
+    </tr>`).join('')}
     ${whtRate > 0 ? `
     <tr class="sub-row">
       <td></td><td style="text-align:right;padding-right:20px">รวมเป็นเงิน</td>
@@ -4613,13 +4638,24 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
 
 
 // ─── RV SETTINGS ────────────────────────────────────────────────────
-const RVSettings = ({ onClose }) => {
-  const s = rvAPI.getSettings();
-  const [prefix, setPrefix] = useState(s.prefix || 'RV');
-  const [payerName, setPayerName] = useState(s.payer_name || '');
-  const [payerSig, setPayerSig] = useState(s.payer_sig || '');
-  const [receiverSig, setReceiverSig] = useState(s.receiver_sig || '');
+const RVSettings = ({ businesses, onClose }) => {
+  const activeBiz = businesses.filter(b => b.status === 'Active');
+  const [bizId, setBizId] = useState(activeBiz[0]?.id || '');
+  const globalS = rvAPI.getSettings();
+  const [prefix, setPrefix] = useState(globalS.prefix || 'RV');
+
+  // load per-biz settings เมื่อ bizId เปลี่ยน
+  const [payerName, setPayerName] = useState('');
+  const [payerSig, setPayerSig] = useState('');
+  const [receiverSig, setReceiverSig] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const s = rvAPI.getSettings(bizId);
+    setPayerName(s.payer_name || '');
+    setPayerSig(s.payer_sig || '');
+    setReceiverSig(s.receiver_sig || '');
+  }, [bizId]);
 
   const handleSigUpload = (e, who) => {
     const file = e.target.files[0]; if (!file) return;
@@ -4634,14 +4670,25 @@ const RVSettings = ({ onClose }) => {
 
   const handleSave = () => {
     setSaving(true);
-    rvAPI.saveSettings({ ...s, prefix, payer_name: payerName, payer_sig: payerSig, receiver_sig: receiverSig });
+    rvAPI.saveSettings({ prefix, payer_name: payerName, payer_sig: payerSig, receiver_sig: receiverSig }, bizId);
     setTimeout(() => { setSaving(false); onClose(true); }, 300);
   };
 
   return (
     <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      {/* เลือกธุรกิจ */}
       <div>
-        <label className="block text-sm font-bold text-slate-700 mb-2">ตัวย่อเลขที่เอกสาร</label>
+        <label className="block text-sm font-bold text-slate-700 mb-1.5">ตั้งค่าสำหรับธุรกิจ</label>
+        <select value={bizId} onChange={e => setBizId(Number(e.target.value))}
+          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+          {activeBiz.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+        <p className="text-xs text-slate-400 mt-1">ลายเซ็นและผู้จ่ายเงินตั้งค่าแยกกันแต่ละธุรกิจ</p>
+      </div>
+
+      {/* prefix — global */}
+      <div>
+        <label className="block text-sm font-bold text-slate-700 mb-2">ตัวย่อเลขที่เอกสาร <span className="text-xs font-normal text-slate-400">(ใช้ร่วมกันทุกธุรกิจ)</span></label>
         <div className="flex items-center gap-2">
           <input value={prefix} onChange={e => setPrefix(e.target.value.toUpperCase())} maxLength={5}
             className="w-24 px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-mono font-bold text-center" />
@@ -4649,9 +4696,10 @@ const RVSettings = ({ onClose }) => {
         </div>
       </div>
 
+      {/* per-biz settings */}
       {[
         { key: 'payer', label: 'ผู้จ่ายเงิน (บริษัท)', name: payerName, setName: setPayerName, sig: payerSig, setSig: setPayerSig },
-        { key: 'receiver', label: 'ลายเซ็นผู้รับเงิน (ตัวอย่าง)', name: null, sig: receiverSig, setSig: setReceiverSig },
+        { key: 'receiver', label: 'ลายเซ็นผู้รับเงิน (ตัวอย่าง/ไม่บังคับ)', name: null, sig: receiverSig, setSig: setReceiverSig },
       ].map(p => (
         <div key={p.key} className="bg-slate-50 rounded-2xl p-4 space-y-3">
           <h4 className="font-bold text-slate-700">{p.label}</h4>
@@ -4839,8 +4887,8 @@ const ReceiptVouchersPage = ({ businesses, onSuccess }) => {
       )}
 
       {/* Settings Drawer */}
-      <Drawer isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="ตั้งค่าใบสำคัญรับเงิน" description="ตัวย่อเลขที่ และลายเซ็น">
-        <RVSettings onClose={(saved) => { setSettingsOpen(false); if (saved) onSuccess('บันทึกการตั้งค่าสำเร็จ'); }} />
+      <Drawer isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="ตั้งค่าใบสำคัญรับเงิน" description="ตัวย่อเลขที่ และลายเซ็นแยกตามธุรกิจ">
+        <RVSettings businesses={businesses} onClose={(saved) => { setSettingsOpen(false); if (saved) onSuccess('บันทึกการตั้งค่าสำเร็จ'); }} />
       </Drawer>
 
       {/* Form Drawer */}
@@ -4848,9 +4896,13 @@ const ReceiptVouchersPage = ({ businesses, onSuccess }) => {
         title={editRv ? 'แก้ไขใบสำคัญรับเงิน' : 'สร้างใบสำคัญรับเงิน'}
         description="กรอกข้อมูลผู้รับเงินและรายการ">
         <RVForm businesses={businesses} editRv={editRv}
-          onClose={(saved) => {
+          onClose={(saved, rv, biz) => {
             setIsFormOpen(false);
-            if (saved) { setRvs(rvAPI.getAll()); onSuccess(editRv ? 'แก้ไขสำเร็จ' : 'สร้างใบสำคัญรับเงินสำเร็จ ✅'); }
+            if (saved) {
+              setRvs(rvAPI.getAll());
+              onSuccess(editRv ? 'แก้ไขสำเร็จ' : 'สร้างใบสำคัญรับเงินสำเร็จ ✅');
+              if (rv && biz) generateRVPDF(rv, biz);
+            }
           }} />
       </Drawer>
     </div>
@@ -4860,26 +4912,31 @@ const ReceiptVouchersPage = ({ businesses, onSuccess }) => {
 // ─── RV FORM ────────────────────────────────────────────────────────
 const RVForm = ({ businesses, editRv, onClose }) => {
   const activeBiz = businesses.filter(b => b.status === 'Active');
-  const settings = rvAPI.getSettings();
   const [bizId, setBizId] = useState(editRv?.business_id || activeBiz[0]?.id || '');
   const [receiverName, setReceiverName] = useState(editRv?.receiver_name || '');
   const [idNumber, setIdNumber] = useState(editRv?.id_number || '');
   const [receiverAddress, setReceiverAddress] = useState(editRv?.receiver_address || '');
-  const [description, setDescription] = useState(editRv?.description || '');
-  const [amount, setAmount] = useState(editRv?.amount || '');
+  const defaultItems = editRv?.items?.length
+    ? editRv.items
+    : [{ description: editRv?.description || '', amount: editRv?.amount || '' }];
+  const [items, setItems] = useState(defaultItems);
   const [whtRate, setWhtRate] = useState(editRv?.wht_rate ?? 3);
   const [issueDate, setIssueDate] = useState(editRv?.issue_date || todayTH());
   const [saving, setSaving] = useState(false);
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
 
-  const gross = Number(amount) || 0;
+  const addItem = () => setItems(prev => [...prev, { description: '', amount: '' }]);
+  const removeItem = (i) => setItems(prev => prev.filter((_, idx) => idx !== i));
+  const updateItem = (i, field, val) => setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it));
+
+  const gross = items.reduce((s, it) => s + (Number(it.amount) || 0), 0);
   const whtAmt = Math.round(gross * Number(whtRate) / 100 * 100) / 100;
   const net = gross - whtAmt;
 
   const handleSave = () => {
     if (!receiverName.trim()) return alert('กรุณาระบุชื่อผู้รับเงิน');
-    if (!amount || isNaN(amount) || Number(amount) <= 0) return alert('กรุณาระบุจำนวนเงิน');
-    if (!description.trim()) return alert('กรุณาระบุรายการ');
+    if (items.some(it => !it.description.trim())) return alert('กรุณาระบุรายการทุกแถว');
+    if (items.some(it => !it.amount || Number(it.amount) <= 0)) return alert('กรุณาระบุจำนวนเงินทุกแถว');
     setSaving(true);
     const s = rvAPI.getSettings();
     let rvNo = editRv?.rv_no;
@@ -4896,15 +4953,12 @@ const RVForm = ({ businesses, editRv, onClose }) => {
       id: editRv?.id,
       rv_no: rvNo, business_id: bizId, receiver_name: receiverName,
       id_number: idNumber, receiver_address: receiverAddress,
-      description, amount: gross, wht_rate: Number(whtRate),
+      items: items.map(it => ({ ...it, amount: Number(it.amount) })),
+      description: items.map(it => it.description).join(', '),
+      amount: gross, wht_rate: Number(whtRate),
       issue_date: issueDate, created_at: editRv?.created_at || new Date().toISOString(),
     });
-    setTimeout(() => {
-      setSaving(false);
-      const biz = businesses.find(b => String(b.id) === String(bizId));
-      generateRVPDF(rv, biz);
-      onClose(true);
-    }, 200);
+    setTimeout(() => { setSaving(false); onClose(true, rv, businesses.find(b => String(b.id) === String(bizId))); }, 200);
   };
 
   return (
@@ -4953,27 +5007,39 @@ const RVForm = ({ businesses, editRv, onClose }) => {
 
         {/* รายการและยอดเงิน */}
         <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
-          <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2"><FileText size={15}/> รายการและยอดเงิน</h3>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">รายการ <span className="text-rose-500">*</span></label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none" rows={2}
-              placeholder="เช่น ค่าจ้างทำของ/ค่าบริการ (ระบุรายละเอียดงาน)"/>
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2"><FileText size={15}/> รายการและยอดเงิน</h3>
+            <button type="button" onClick={addItem}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100">
+              <Plus size={12}/> เพิ่มรายการ
+            </button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">จำนวนเงิน (บาท) <span className="text-rose-500">*</span></label>
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min="0"
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+          {/* header */}
+          <div className="grid grid-cols-[1fr_120px_28px] gap-2 px-1">
+            <span className="text-xs font-semibold text-slate-500">รายการ <span className="text-rose-500">*</span></span>
+            <span className="text-xs font-semibold text-slate-500 text-right">จำนวนเงิน (บาท)</span>
+            <span/>
+          </div>
+          {items.map((item, i) => (
+            <div key={i} className="grid grid-cols-[1fr_120px_28px] gap-2 items-start">
+              <input value={item.description} onChange={e => updateItem(i, 'description', e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                placeholder="ระบุรายละเอียดงาน..."/>
+              <input type="number" value={item.amount} onChange={e => updateItem(i, 'amount', e.target.value)} min="0"
+                className="px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-right"
                 placeholder="0.00"/>
+              <button type="button" onClick={() => removeItem(i)} disabled={items.length === 1}
+                className="mt-1 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-500 disabled:opacity-20">
+                <X size={14}/>
+              </button>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">ภาษีหัก ณ ที่จ่าย</label>
-              <select value={whtRate} onChange={e => setWhtRate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
-                {WHT_RATES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
+          ))}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">ภาษีหัก ณ ที่จ่าย (คำนวณจากยอดรวมทั้งหมด)</label>
+            <select value={whtRate} onChange={e => setWhtRate(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+              {WHT_RATES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
           </div>
         </div>
 
@@ -4995,7 +5061,7 @@ const RVForm = ({ businesses, editRv, onClose }) => {
         <button onClick={() => onClose(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-100">ยกเลิก</button>
         <button onClick={handleSave} disabled={saving}
           className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
-          {saving ? <><Loader2 size={16} className="animate-spin"/> กำลังบันทึก...</> : <><Printer size={16}/> บันทึกและพิมพ์</>}
+          {saving ? <><Loader2 size={16} className="animate-spin"/> กำลังบันทึก...</> : <><Check size={16}/> บันทึก</>}
         </button>
       </div>
     </div>
