@@ -127,22 +127,16 @@ body{font-family:'Sarabun',sans-serif;font-size:13px;color:#1e293b;background:#f
 .val{font-size:13px;color:#0f172a;font-weight:700;flex:1;border-bottom:1px solid #cbd5e1;padding-bottom:2px;line-height:1.6;}
 .id-boxes{display:flex;gap:3px;flex-wrap:wrap;}
 .id-box{width:22px;height:22px;border:1px solid #94a3b8;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border-radius:3px;background:#fff;}
-table.items{width:100%;border-collapse:collapse;margin:0;border:2px solid #1e293b;border-radius:8px;overflow:hidden;}
+table.items{width:100%;border-collapse:collapse;margin:0;border:1px solid #cbd5e1;}
 table.items thead tr{background:#1e293b;}
-table.items thead th{color:#fff;padding:9px 14px;font-size:12px;font-weight:700;text-align:left;border-right:1px solid #334155;}
+table.items thead th{color:#fff;padding:9px 14px;font-size:12px;font-weight:700;text-align:left;border-right:1px solid #cbd5e1;}
 table.items thead th:last-child{text-align:right;border-right:none;}
-table.items tbody tr{border-bottom:1px solid #cbd5e1;}
-table.items tbody tr:nth-child(even){background:#f8fafc;}
-table.items tbody tr:nth-child(odd){background:#ffffff;}
-table.items tbody td{padding:8px 14px;font-size:12px;border-right:1px solid #e2e8f0;}
-table.items tbody td:last-child{border-right:none;}
+table.items tbody td{padding:8px 14px;font-size:12px;border:1px solid #cbd5e1;background:#fff;}
 table.items tbody td.num{text-align:right;font-weight:600;}
-tr.sub-row td{background:#eef2f7!important;border-top:1px solid #cbd5e1;}
-tr.sub-row td.num{font-weight:700;}
+tr.sub-row td{background:#f8fafc!important;font-weight:700;}
 tr.wht-row td{color:#dc2626;background:#fff5f5!important;}
 tr.wht-row td.num{color:#dc2626;}
-tr.net-row td{background:#1e293b!important;color:#fff;font-weight:800;font-size:14px;border-right:1px solid #334155;}
-tr.net-row td:last-child{border-right:none;}
+tr.net-row td{background:#1e293b!important;color:#fff;font-weight:800;font-size:14px;border-color:#334155;}
 tr.net-row td.num{color:#f0fdf4;}
 .baht-wrap{display:flex;align-items:center;gap:10px;margin:12px 0 10px;padding:9px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;}
 .baht-lbl{font-size:12px;font-weight:700;color:#92400e;white-space:nowrap;}
