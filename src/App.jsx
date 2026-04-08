@@ -65,6 +65,24 @@ const rvAPI = {
   },
 };
 
+// ─── SHARED UTILITY: แปลงตัวเลขเป็นตัวอักษรภาษาไทย ───────────────────
+const bahtText = (n) => {
+  const units = ['','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
+  const pos = ['','สิบ','ร้อย','พัน','หมื่น','แสน','ล้าน'];
+  const num = Math.round(Number(n) || 0);
+  if (num === 0) return 'ศูนย์บาทถ้วน';
+  let s = ''; const str = String(num);
+  for (let i = 0; i < str.length; i++) {
+    const d = parseInt(str[i]); const p = str.length - i - 1;
+    if (d === 0) continue;
+    if (p === 1 && d === 2) s += 'ยี่';
+    else if (p === 1 && d === 1) s += '';
+    else s += units[d];
+    s += pos[p];
+  }
+  return s + 'บาทถ้วน';
+};
+
 // ─── GENERATE RECEIPT VOUCHER PDF ───────────────────────────────────────
 const generateRVPDF = (rv, biz) => {
   const settings = rvAPI.getSettings(rv.business_id);
@@ -236,18 +254,7 @@ tr.net-row td.num{color:#fff;}
 // ─── GENERATE PAYMENT VOUCHER PDF ─────────────────────────────────────
 const generatePVPDF = (pv, biz, settings) => {
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
-  const bahtText = (n) => {
-    const units=['','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
-    const pos=['','สิบ','ร้อย','พัน','หมื่น','แสน','ล้าน'];
-    const num=Math.round(Number(n)||0); if(num===0) return 'ศูนย์บาทถ้วน';
-    let s=''; const str=String(num);
-    for(let i=0;i<str.length;i++){
-      const d=parseInt(str[i]); const p=str.length-i-1; if(d===0) continue;
-      if(p===1&&d===2) s+='ยี่'; else if(p===1&&d===1) s+=''; else s+=units[d];
-      s+=pos[p];
-    }
-    return s+'บาทถ้วน';
-  };
+  // ใช้ global bahtText()
   const approverSig = settings?.approver_sig || '';
   const payerSig   = settings?.payer_sig   || '';
 
