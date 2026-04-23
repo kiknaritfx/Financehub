@@ -3630,7 +3630,7 @@ const generatePDF = (doc, biz, settings) => {
   .total-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid #f1f5f9;}
   .total-final{display:flex;justify-content:space-between;padding:10px 14px;background:#f1f5f9;color:#1e293b;border-radius:8px;font-size:15px;font-weight:700;margin-top:6px;border:2px solid #e2e8f0;}
   .footer{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;}
-  .sig-box{text-align:center;}
+  .sig-box{text-align:center;display:flex;flex-direction:column;justify-content:flex-end;}
   .sig-line{border-bottom:1px dashed #94a3b8;margin:32px 12px 6px;}
   .sig-img{max-height:60px;max-width:140px;margin:0 auto 4px;display:block;}
   .sig-name{font-size:12px;font-weight:600;color:#475569;}
@@ -3729,7 +3729,7 @@ ${doc.doc_type === 'RC' ? `
   </div>
   <div class="sig-box">
     <div class="sig-line"></div>
-    <div class="sig-name">${doc.doc_type === 'QO' ? 'ยอมรับใบเสนอราคา / Accepted by' : 'ผู้รับใบแจ้งหนี้ / Accepted by'}</div>
+    <div class="sig-name">ผู้รับใบแจ้งหนี้ / Accepted by</div>
     <div class="sig-label">วันที่ / Date ................................</div>
   </div>
 </div>`}
