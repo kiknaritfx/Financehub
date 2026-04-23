@@ -3729,7 +3729,7 @@ ${doc.doc_type === 'RC' ? `
   </div>
   <div class="sig-box">
     <div class="sig-line"></div>
-    <div class="sig-name">ผู้รับใบแจ้งหนี้ / Accepted by</div>
+    <div class="sig-name">${doc.doc_type === 'QO' ? 'ยอมรับใบเสนอราคา / Accepted by' : 'ผู้รับใบแจ้งหนี้ / Accepted by'}</div>
     <div class="sig-label">วันที่ / Date ................................</div>
   </div>
 </div>`}
