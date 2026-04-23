@@ -3630,7 +3630,7 @@ const generatePDF = (doc, biz, settings) => {
   .total-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid #f1f5f9;}
   .total-final{display:flex;justify-content:space-between;padding:10px 14px;background:#f1f5f9;color:#1e293b;border-radius:8px;font-size:15px;font-weight:700;margin-top:6px;border:2px solid #e2e8f0;}
   .footer{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;}
-  .sig-box{text-align:center;display:flex;flex-direction:column;justify-content:flex-end;}
+  .sig-box{text-align:center;}
   .sig-line{border-bottom:1px dashed #94a3b8;margin:32px 12px 6px;}
   .sig-img{max-height:60px;max-width:140px;margin:0 auto 4px;display:block;}
   .sig-name{font-size:12px;font-weight:600;color:#475569;}
@@ -3760,7 +3760,8 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc, prefillDoc 
     if (rawItems) return Array.isArray(rawItems) ? rawItems : JSON.parse(rawItems);
     return [{ description: '', qty: 1, unit: 'หน่วย', unit_price: 0 }];
   });
-  const [discount, setDiscount] = useState(editDoc?.discount || 0);
+  const [discount, setDiscount] = useState(editDoc?.discount_input ?? editDoc?.discount ?? 0);
+  const [discountType, setDiscountType] = useState(editDoc?.discount_type || 'amount'); // 'amount' | 'percent'
   const [useVat, setUseVat] = useState(false);
   const [whtRate, setWhtRate] = useState(0); // 0, 1, 1.5, 3, 5, 10, 15
   const [remarks, setRemarks] = useState(editDoc?.remarks || '');
@@ -3769,7 +3770,10 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc, prefillDoc 
 
   const typeInfo = DOC_TYPES.find(t => t.id === docType);
   const subtotal = items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.unit_price) || 0), 0);
-  const afterDiscount = subtotal - (Number(discount) || 0);
+  const discountAmt = discountType === 'percent'
+    ? subtotal * (Math.min(Number(discount) || 0, 100) / 100)
+    : (Number(discount) || 0);
+  const afterDiscount = subtotal - discountAmt;
   const vatAmt = useVat ? afterDiscount * 0.07 : 0;
   const whtAmt = Number(whtRate) > 0 ? afterDiscount * (Number(whtRate) / 100) : 0;
   const total = afterDiscount + vatAmt - whtAmt;
@@ -3796,7 +3800,7 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc, prefillDoc 
       customer_address: customerAddr, customer_tax_id: customerTax,
       customer_email: customerEmail, customer_phone: customerPhone,
       issue_date: issueDate, valid_date: validDate || null, ref_doc: refDoc || null,
-      items, subtotal, discount: Number(discount) || 0, total,
+      items, subtotal, discount: discountAmt, discount_type: discountType, discount_input: Number(discount) || 0, total,
       remarks, created_by: user?.id || null,
     };
     try {
@@ -3974,15 +3978,31 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc, prefillDoc 
             </div>
             <div className="flex items-center justify-between text-sm text-slate-600">
               <span>ส่วนลด</span>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400">฿</span>
-                <input type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(e.target.value)}
+              <div className="flex items-center gap-1">
+                {/* Toggle ฿ / % */}
+                <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold">
+                  <button type="button"
+                    onClick={() => setDiscountType('amount')}
+                    className={`px-2.5 py-1.5 transition-colors ${discountType === 'amount' ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+                    ฿
+                  </button>
+                  <button type="button"
+                    onClick={() => setDiscountType('percent')}
+                    className={`px-2.5 py-1.5 transition-colors ${discountType === 'percent' ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+                    %
+                  </button>
+                </div>
+                <input type="number" min="0" step="0.01"
+                  max={discountType === 'percent' ? 100 : undefined}
+                  value={discount} onChange={e => setDiscount(e.target.value)}
                   className="w-28 px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-right" />
+                <span className="text-slate-400 w-4">{discountType === 'percent' ? '%' : '฿'}</span>
               </div>
             </div>
-            {Number(discount) > 0 && (
+            {discountAmt > 0 && (
               <div className="flex justify-between text-sm text-slate-500">
-                <span>หลังหักส่วนลด</span><span>฿{fmt(afterDiscount)}</span>
+                <span>หลังหักส่วนลด{discountType === 'percent' ? ` (${Number(discount)}%)` : ''} (-฿{fmt(discountAmt)})</span>
+                <span>฿{fmt(afterDiscount)}</span>
               </div>
             )}
             {/* VAT */}
