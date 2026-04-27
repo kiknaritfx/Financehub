@@ -4321,11 +4321,15 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
   const closeLightbox = () => setLightbox(null);
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
 
-  const filtered = pvs.filter(p =>
-    !search || (p.pv_no || '').toLowerCase().includes(search.toLowerCase())
+  const isPvOwner = user?.role === 'เจ้าของธุรกิจ';
+  const filtered = pvs.filter(p => {
+    const matchSearch = !search || (p.pv_no || '').toLowerCase().includes(search.toLowerCase())
       || (p.pay_to || '').includes(search)
-      || (p.description || '').includes(search)
-  );
+      || (p.description || '').includes(search);
+    const matchAccess = isPvOwner || user?.access_level === 'All Data' ||
+      (user?.access_level === 'Own Data' && p.created_by === user?.name);
+    return matchSearch && matchAccess;
+  });
 
   // โหลดรูปภาพสำหรับ tx_id ที่ยังไม่เคยโหลด
   const loadImages = async (txId) => {
@@ -4780,7 +4784,7 @@ const WHT_RATES = [
   { label: '15% (รางวัล/โบนัส)', value: 15 },
 ];
 
-const ReceiptVouchersPage = ({ businesses, onSuccess }) => {
+const ReceiptVouchersPage = ({ businesses, user, onSuccess }) => {
   const [rvs, setRvs] = useState(() => rvAPI.getAll());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -4788,11 +4792,15 @@ const ReceiptVouchersPage = ({ businesses, onSuccess }) => {
   const [search, setSearch] = useState('');
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
 
-  const filtered = rvs.filter(r =>
-    !search || (r.rv_no||'').toLowerCase().includes(search.toLowerCase())
+  const isRvOwner = user?.role === 'เจ้าของธุรกิจ';
+  const filtered = rvs.filter(r => {
+    const matchSearch = !search || (r.rv_no||'').toLowerCase().includes(search.toLowerCase())
       || (r.receiver_name||'').includes(search)
-      || (r.description||'').includes(search)
-  );
+      || (r.description||'').includes(search);
+    const matchAccess = isRvOwner || user?.access_level === 'All Data' ||
+      (user?.access_level === 'Own Data' && r.created_by === user?.name);
+    return matchSearch && matchAccess;
+  });
 
   const handleDelete = (id) => {
     if (!confirm('ลบใบสำคัญรับเงินนี้หรือไม่?')) return;
@@ -4924,7 +4932,7 @@ const ReceiptVouchersPage = ({ businesses, onSuccess }) => {
       <Drawer isOpen={isFormOpen} onClose={() => setIsFormOpen(false)}
         title={editRv ? 'แก้ไขใบสำคัญรับเงิน' : 'สร้างใบสำคัญรับเงิน'}
         description="กรอกข้อมูลผู้รับเงินและรายการ">
-        <RVForm businesses={businesses} editRv={editRv}
+        <RVForm businesses={businesses} editRv={editRv} user={user}
           onClose={(saved, rv, biz) => {
             setIsFormOpen(false);
             if (saved) {
@@ -4939,7 +4947,7 @@ const ReceiptVouchersPage = ({ businesses, onSuccess }) => {
 };
 
 // ─── RV FORM ────────────────────────────────────────────────────────
-const RVForm = ({ businesses, editRv, onClose }) => {
+const RVForm = ({ businesses, editRv, user, onClose }) => {
   const activeBiz = businesses.filter(b => b.status === 'Active');
   const [bizId, setBizId] = useState(editRv?.business_id || activeBiz[0]?.id || '');
   const [receiverName, setReceiverName] = useState(editRv?.receiver_name || '');
@@ -4986,6 +4994,7 @@ const RVForm = ({ businesses, editRv, onClose }) => {
       description: items.map(it => it.description).join(', '),
       amount: gross, wht_rate: Number(whtRate),
       issue_date: issueDate, created_at: editRv?.created_at || new Date().toISOString(),
+      created_by: editRv?.created_by || user?.name || 'Admin',
     });
     setTimeout(() => { setSaving(false); onClose(true, rv, businesses.find(b => String(b.id) === String(bizId))); }, 200);
   };
@@ -5655,7 +5664,7 @@ export default function App() {
       case 'users': return <UserManagement businesses={businesses} onSuccess={showToast} />;
       case 'documents': return <Documents businesses={businesses} user={user} onSuccess={showToast} />;
       case 'payment_vouchers': return <PaymentVouchersPage businesses={businesses} user={user} onSuccess={showToast} />;
-      case 'receipt_vouchers': return <ReceiptVouchersPage businesses={businesses} onSuccess={showToast} />;
+      case 'receipt_vouchers': return <ReceiptVouchersPage businesses={businesses} user={user} onSuccess={showToast} />;
       default: return <Dashboard setCurrentView={setCurrentView} />;
     }
   };
