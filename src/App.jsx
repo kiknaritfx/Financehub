@@ -4222,11 +4222,24 @@ const PVEditModal = ({ pv, businesses, onClose, onSaved }) => {
   const [note, setNote] = useState(pv.note || '');
   const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!payTo.trim()) return alert('กรุณาระบุชื่อร้านค้า/ผู้รับเงิน');
     setSaving(true);
-    const updated = { ...pv, pay_to: payTo, doc_ref: docRef, description, amount: Number(amount), pay_method: payMethod, cheque_no: chequeNo, cheque_date: chequeDate, branch_no: branchNo, issue_date: issueDate, note };
-    setTimeout(() => { setSaving(false); onSaved(updated); }, 200);
+    try {
+      const updated = {
+        ...pv,
+        pay_to: payTo, doc_ref: docRef, description,
+        amount: Number(amount), pay_method: payMethod,
+        cheque_no: chequeNo, cheque_date: chequeDate,
+        branch_no: branchNo, issue_date: issueDate, note,
+      };
+      await pvAPI.update(pv.id, updated);
+      onSaved(updated);
+    } catch(e) {
+      alert('เกิดข้อผิดพลาด: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

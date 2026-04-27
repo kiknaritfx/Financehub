@@ -737,11 +737,26 @@ route('post', '/api/payment-vouchers', async (req, res) => {
 // PUT update PV
 route('put', '/api/payment-vouchers/:id', async (req, res) => {
   try {
-    const { pv_no, pay_to, description, amount, payment_method, remarks } = req.body;
+    const { pv_no, pay_to, description, amount, payment_method, pay_method,
+            remarks, note, doc_ref, issue_date, branch_no, cheque_no, cheque_date,
+            wht_rate, net_amount } = req.body;
     const r = await pool.query(
-      `UPDATE payment_vouchers SET pv_no=$1, pay_to=$2, description=$3, amount=$4, payment_method=$5, remarks=$6, updated_at=NOW()
-       WHERE id=$7 RETURNING *`,
-      [pv_no, pay_to, description, amount, payment_method, remarks, req.params.id]
+      `UPDATE payment_vouchers SET
+        pv_no=$1, pay_to=$2, description=$3, amount=$4,
+        payment_method=$5, pay_method=$5,
+        remarks=$6, note=$6,
+        doc_ref=$7, issue_date=$8, branch_no=$9,
+        cheque_no=$10, cheque_date=$11,
+        wht_rate=$12, net_amount=$13,
+        updated_at=NOW()
+       WHERE id=$14 RETURNING *`,
+      [pv_no, pay_to, description, amount,
+       pay_method || payment_method || 'petty_cash',
+       note || remarks || null,
+       doc_ref || null, issue_date || null, branch_no || '0',
+       cheque_no || null, cheque_date || null,
+       wht_rate || 0, net_amount ?? amount,
+       req.params.id]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
