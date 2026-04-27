@@ -692,25 +692,25 @@ route('post', '/api/payment-vouchers', async (req, res) => {
     const { business_id, tx_id, pay_to, description, amount, wht_rate, net_amount, payment_method, remarks, created_by } = req.body;
     let { pv_no } = req.body;
 
-    // Auto-generate pv_no if not provided
+    // Auto-generate pv_no — increment running atomically using UPDATE...RETURNING
     if (!pv_no) {
-      const settingsRow = await pool.query(
-        "SELECT * FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1"
+      // ถ้ายังไม่มี row ให้สร้างก่อน
+      // Ensure row exists
+      const pvEx = await pool.query("SELECT id FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1");
+      if (pvEx.rows.length === 0) {
+        await pool.query("INSERT INTO voucher_settings (voucher_type, business_id, prefix, running) VALUES ('pv', NULL, 'PV', 0)");
+      }
+      // Atomic increment — ป้องกัน race condition
+      const upd = await pool.query(
+        `UPDATE voucher_settings SET running = running + 1
+         WHERE voucher_type='pv' AND business_id IS NULL
+         RETURNING running, prefix`
       );
-      const s = settingsRow.rows[0] || {};
-      const prefix = s.prefix || 'PV';
-      const newRunning = (s.running || 0) + 1;
+      const s = upd.rows[0] || { running: 1, prefix: 'PV' };
       const now = new Date();
       const yy = String(now.getFullYear() + 543).slice(-2);
       const mm = String(now.getMonth() + 1).padStart(2, '0');
-      pv_no = `${prefix}-${yy}${mm}-${String(newRunning).padStart(3, '0')}`;
-      // Update running atomically
-      await pool.query(
-        `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running, approver_name, payer_name, approver_sig, payer_sig)
-         VALUES ('pv', NULL, $1, $2, $3, $4, $5, $6)
-         ON CONFLICT (voucher_type, business_id) DO UPDATE SET running=$2`,
-        [prefix, newRunning, s.approver_name||null, s.payer_name||null, s.approver_sig||null, s.payer_sig||null]
-      );
+      pv_no = `${s.prefix || 'PV'}-${yy}${mm}-${String(s.running).padStart(3, '0')}`;
     }
 
     const r = await pool.query(
@@ -755,14 +755,24 @@ route('get', '/api/voucher-settings/pv', async (req, res) => {
 route('post', '/api/voucher-settings/pv', async (req, res) => {
   try {
     const { prefix, running, approver_name, payer_name, approver_sig, payer_sig } = req.body;
-    const r = await pool.query(
-      `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running, approver_name, payer_name, approver_sig, payer_sig)
-       VALUES ('pv', NULL, $1, $2, $3, $4, $5, $6)
-       ON CONFLICT (voucher_type, business_id) DO UPDATE
-       SET prefix=$1, running=$2, approver_name=$3, payer_name=$4, approver_sig=$5, payer_sig=$6
-       RETURNING *`,
-      [prefix, running ?? 0, approver_name, payer_name, approver_sig, payer_sig]
+    const existing = await pool.query(
+      "SELECT id FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1"
     );
+    let r;
+    if (existing.rows.length > 0) {
+      r = await pool.query(
+        `UPDATE voucher_settings SET prefix=$1, running=COALESCE($2, running),
+         approver_name=$3, payer_name=$4, approver_sig=COALESCE($5, approver_sig), payer_sig=COALESCE($6, payer_sig)
+         WHERE voucher_type='pv' AND business_id IS NULL RETURNING *`,
+        [prefix, running ?? null, approver_name, payer_name, approver_sig || null, payer_sig || null]
+      );
+    } else {
+      r = await pool.query(
+        `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running, approver_name, payer_name, approver_sig, payer_sig)
+         VALUES ('pv', NULL, $1, $2, $3, $4, $5, $6) RETURNING *`,
+        [prefix || 'PV', running ?? 0, approver_name, payer_name, approver_sig || null, payer_sig || null]
+      );
+    }
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -788,25 +798,23 @@ route('post', '/api/receipt-vouchers', async (req, res) => {
     const { business_id, receiver_name, id_number, receiver_address, items, description, amount, wht_rate, issue_date, created_by } = req.body;
     let { rv_no } = req.body;
 
-    // Auto-generate rv_no if not provided
+    // Auto-generate rv_no — atomic increment
     if (!rv_no) {
-      const settingsRow = await pool.query(
-        "SELECT * FROM voucher_settings WHERE voucher_type='rv' AND business_id IS NULL LIMIT 1"
+      // Ensure row exists
+      const rvEx = await pool.query("SELECT id FROM voucher_settings WHERE voucher_type='rv' AND business_id IS NULL LIMIT 1");
+      if (rvEx.rows.length === 0) {
+        await pool.query("INSERT INTO voucher_settings (voucher_type, business_id, prefix, running) VALUES ('rv', NULL, 'RV', 0)");
+      }
+      const upd = await pool.query(
+        `UPDATE voucher_settings SET running = running + 1
+         WHERE voucher_type='rv' AND business_id IS NULL
+         RETURNING running, prefix`
       );
-      const s = settingsRow.rows[0] || {};
-      const prefix = s.prefix || 'RV';
-      const newRunning = (s.running || 0) + 1;
+      const s = upd.rows[0] || { running: 1, prefix: 'RV' };
       const now = new Date();
       const yy = String(now.getFullYear() + 543).slice(-2);
       const mm = String(now.getMonth() + 1).padStart(2, '0');
-      rv_no = `${prefix}-${yy}${mm}-${String(newRunning).padStart(3, '0')}`;
-      // Update running atomically
-      await pool.query(
-        `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running)
-         VALUES ('rv', NULL, $1, $2)
-         ON CONFLICT (voucher_type, business_id) DO UPDATE SET running=$2`,
-        [prefix, newRunning]
-      );
+      rv_no = `${s.prefix || 'RV'}-${yy}${mm}-${String(s.running).padStart(3, '0')}`;
     }
 
     const r = await pool.query(
@@ -862,22 +870,39 @@ route('post', '/api/voucher-settings/rv', async (req, res) => {
     const { prefix, running, payer_name, payer_sig, receiver_sig, business_id } = req.body;
     if (business_id) {
       // per-business sig settings
-      await pool.query(
-        `INSERT INTO voucher_settings (voucher_type, business_id, payer_name, payer_sig, receiver_sig)
-         VALUES ('rv', $1, $2, $3, $4)
-         ON CONFLICT (voucher_type, business_id) DO UPDATE
-         SET payer_name=$2, payer_sig=$3, receiver_sig=$4`,
-        [business_id, payer_name, payer_sig, receiver_sig]
+      const ex = await pool.query(
+        "SELECT id FROM voucher_settings WHERE voucher_type='rv' AND business_id=$1 LIMIT 1", [business_id]
       );
+      if (ex.rows.length > 0) {
+        await pool.query(
+          `UPDATE voucher_settings SET payer_name=$1, payer_sig=COALESCE($2, payer_sig), receiver_sig=COALESCE($3, receiver_sig)
+           WHERE voucher_type='rv' AND business_id=$4`,
+          [payer_name, payer_sig || null, receiver_sig || null, business_id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO voucher_settings (voucher_type, business_id, payer_name, payer_sig, receiver_sig)
+           VALUES ('rv', $1, $2, $3, $4)`,
+          [business_id, payer_name, payer_sig || null, receiver_sig || null]
+        );
+      }
     } else {
       // global prefix+running
-      await pool.query(
-        `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running)
-         VALUES ('rv', NULL, $1, $2)
-         ON CONFLICT (voucher_type, business_id) DO UPDATE
-         SET prefix=$1, running=$2`,
-        [prefix, running ?? 0]
+      const ex = await pool.query(
+        "SELECT id FROM voucher_settings WHERE voucher_type='rv' AND business_id IS NULL LIMIT 1"
       );
+      if (ex.rows.length > 0) {
+        await pool.query(
+          `UPDATE voucher_settings SET prefix=$1, running=COALESCE($2, running)
+           WHERE voucher_type='rv' AND business_id IS NULL`,
+          [prefix, running ?? null]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running) VALUES ('rv', NULL, $1, $2)`,
+          [prefix || 'RV', running ?? 0]
+        );
+      }
     }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
