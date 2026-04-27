@@ -224,9 +224,29 @@ const generatePVPDF = (pv, biz, settings) => {
       <div class="pay-cell"><span class="pay-lbl">เลขที่เช็ค</span><span class="pay-uline">${pv.pay_method==='เช็คธนาคาร'?(pv.cheque_no||'—'):'—'}</span></div>
     </div>`;
 
+  // ── WHT calculation ──
+  const pvWhtRate = Number(pv.wht_rate) || 0;
+  const pvWhtAmt = Math.round(Number(pv.amount) * pvWhtRate / 100 * 100) / 100;
+  const pvNet = Number(pv.amount) - pvWhtAmt;
+
   // ── 8 แถวว่าง ──
   const emptyRows = Array(8).fill('')
     .map(()=>`<tr class="empty-row"><td></td><td></td><td></td><td></td></tr>`).join('');
+
+  // ── WHT row (แสดงเฉพาะถ้ามีการหัก) ──
+  const whtRow = pvWhtRate > 0 ? `
+    <tr style="background:#fff5f5">
+      <td colspan="2"></td>
+      <td style="text-align:right;font-weight:700;color:#dc2626;padding:6px 12px;">หัก ณ ที่จ่าย ${pvWhtRate}%</td>
+      <td style="text-align:right;font-weight:800;color:#dc2626;padding:6px 12px;">-${fmt(pvWhtAmt)}</td>
+    </tr>` : '';
+
+  const netRow = `
+    <tr style="background:#1e293b">
+      <td colspan="2"></td>
+      <td style="text-align:right;font-weight:700;color:#fff;padding:7px 12px;">ยอดสุทธิที่จ่าย</td>
+      <td style="text-align:right;font-weight:800;color:#f0fdf4;padding:7px 12px;">${fmt(pvNet)}</td>
+    </tr>`;
 
   const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
 <title>${pv.pv_no} - ใบสำคัญจ่าย</title>
@@ -321,20 +341,19 @@ ${payMethodRow}
       <td style="text-align:right;font-weight:700">${fmt(pv.amount)}</td>
     </tr>
     ${emptyRows}
+    <tr style="border-top:2px solid #1e293b;background:#f8fafc">
+      <td colspan="2" style="padding:6px 12px;font-size:11px;color:#64748b;">หมายเหตุ: ${pv.note||'—'}</td>
+      <td style="text-align:right;font-weight:700;padding:6px 12px;">รวมเงิน</td>
+      <td style="text-align:right;font-weight:800;padding:6px 12px;">${fmt(pv.amount)}</td>
+    </tr>
+    ${whtRow}
+    ${netRow}
   </tbody>
 </table>
 
-<div class="sum-wrap">
-  <div class="sum-note">หมายเหตุ: ${pv.note||'—'}</div>
-  <div class="sum-total">
-    <span class="sum-label">จำนวนเงินรวมทั้งสิ้น</span>
-    <span class="sum-amount">฿${fmt(pv.amount)}</span>
-  </div>
-</div>
-
 <div class="baht-wrap">
-  <span class="baht-lbl">จำนวนเงิน (ตัวอักษร)</span>
-  <span class="baht-text">${bahtText(pv.amount)}</span>
+  <span class="baht-lbl">ยอดสุทธิ (ตัวอักษร)</span>
+  <span class="baht-text">${bahtText(pvNet)}</span>
 </div>
 
 <div class="sig-row">
@@ -1408,12 +1427,16 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
   const [docRef, setDocRef] = useState('');
   const [description, setDescription] = useState(tx.category || '');
   const [amount] = useState(tx.amount || 0);
+  const [whtRate, setWhtRate] = useState(0);
   const [payMethod, setPayMethod] = useState('โอน');
   const [chequeNo, setChequeNo] = useState('');
   const [chequeDate, setChequeDate] = useState('');
   const [branchNo, setBranchNo] = useState('0');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const whtAmt = Math.round(amount * Number(whtRate) / 100 * 100) / 100;
+  const netAmount = amount - whtAmt;
 
   const handleSave = async () => {
     if (!payTo.trim()) return alert('กรุณาระบุชื่อร้านค้า/ผู้รับเงิน');
@@ -1429,6 +1452,8 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
         doc_ref: docRef,
         description,
         amount,
+        wht_rate: Number(whtRate),
+        net_amount: netAmount,
         pay_method: payMethod,
         cheque_no: chequeNo,
         cheque_date: chequeDate,
@@ -1542,18 +1567,45 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
                   ))}
                   <tr className="border-t-2 border-slate-300 bg-slate-50">
                     <td colSpan={2} className="px-3 py-2 text-xs font-bold text-slate-500">หมายเหตุ:</td>
-                    <td className="px-3 py-2 text-sm font-bold text-right">จำนวนเงินรวม</td>
+                    <td className="px-3 py-2 text-sm font-bold text-right text-slate-600">รวมเงิน</td>
                     <td className="px-3 py-2 text-right font-black text-slate-800">{fmt(amount)}</td>
+                  </tr>
+                  {Number(whtRate) > 0 && (
+                    <tr className="bg-rose-50">
+                      <td colSpan={2}></td>
+                      <td className="px-3 py-2 text-sm font-bold text-right text-rose-600">หัก ณ ที่จ่าย {whtRate}%</td>
+                      <td className="px-3 py-2 text-right font-black text-rose-600">-{fmt(whtAmt)}</td>
+                    </tr>
+                  )}
+                  <tr className="bg-slate-800">
+                    <td colSpan={2}></td>
+                    <td className="px-3 py-2 text-sm font-bold text-right text-white">ยอดสุทธิที่จ่าย</td>
+                    <td className="px-3 py-2 text-right font-black text-white">{fmt(netAmount)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
+          {/* หัก ณ ที่จ่าย */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5">หัก ณ ที่จ่าย (WHT)</label>
+            <select value={whtRate} onChange={e => setWhtRate(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-400 outline-none text-sm">
+              <option value={0}>ไม่หักภาษี</option>
+              <option value={1}>1% (ค่าเช่า)</option>
+              <option value={1.5}>1.5% (ค่าขนส่ง)</option>
+              <option value={3}>3% (ค่าบริการ/รับจ้าง)</option>
+              <option value={5}>5% (ค่านายหน้า)</option>
+              <option value={10}>10% (ค่าวิชาชีพ)</option>
+              <option value={15}>15% (รางวัล/โบนัส)</option>
+            </select>
+          </div>
+
           {/* ยอดเงิน (ตัวอักษร) */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-800">
-            <span className="font-semibold">จำนวนเงิน: </span>
-            <span className="font-black">{bahtText(amount)}</span>
+            <span className="font-semibold">ยอดสุทธิ: </span>
+            <span className="font-black">{bahtText(netAmount)}</span>
           </div>
 
           {/* หมายเหตุ */}

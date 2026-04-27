@@ -689,7 +689,7 @@ route('get', '/api/payment-vouchers', async (req, res) => {
 // POST create PV — server generates pv_no atomically
 route('post', '/api/payment-vouchers', async (req, res) => {
   try {
-    const { business_id, tx_id, pay_to, description, amount, payment_method, remarks, created_by } = req.body;
+    const { business_id, tx_id, pay_to, description, amount, wht_rate, net_amount, payment_method, remarks, created_by } = req.body;
     let { pv_no } = req.body;
 
     // Auto-generate pv_no if not provided
@@ -701,7 +701,6 @@ route('post', '/api/payment-vouchers', async (req, res) => {
       const prefix = s.prefix || 'PV';
       const newRunning = (s.running || 0) + 1;
       const now = new Date();
-      // พ.ศ.
       const yy = String(now.getFullYear() + 543).slice(-2);
       const mm = String(now.getMonth() + 1).padStart(2, '0');
       pv_no = `${prefix}-${yy}${mm}-${String(newRunning).padStart(3, '0')}`;
@@ -715,9 +714,9 @@ route('post', '/api/payment-vouchers', async (req, res) => {
     }
 
     const r = await pool.query(
-      `INSERT INTO payment_vouchers (pv_no, business_id, tx_id, pay_to, description, amount, payment_method, remarks, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [pv_no, business_id, tx_id || null, pay_to, description, amount, payment_method || 'petty_cash', remarks, created_by]
+      `INSERT INTO payment_vouchers (pv_no, business_id, tx_id, pay_to, description, amount, wht_rate, net_amount, payment_method, remarks, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [pv_no, business_id, tx_id || null, pay_to, description, amount, wht_rate || 0, net_amount ?? amount, payment_method || 'petty_cash', remarks, created_by]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
