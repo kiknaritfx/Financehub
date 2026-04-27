@@ -1782,6 +1782,7 @@ const Transactions = ({ businesses, user }) => {
     return null;
   };
 
+  const isOwnerRole = user?.role === 'เจ้าของธุรกิจ';
   const filtered = txns.filter(t => {
     const s = search.toLowerCase();
     const matchSearch = !s || (t.category || '').toLowerCase().includes(s) || (t.created_by_name || '').includes(s) || (t.txn_id || '').toLowerCase().includes(s);
@@ -1795,7 +1796,13 @@ const Transactions = ({ businesses, user }) => {
       if (dateRange.start && txDate < dateRange.start) matchDate = false;
       if (dateRange.end && txDate > dateRange.end) matchDate = false;
     }
-    return matchSearch && matchBiz && matchType && matchDate;
+    // กรองตาม access_level: Own Data = เห็นเฉพาะที่ตัวเองบันทึก, All Data = เห็นทั้งหมด
+    const matchAccess = isOwnerRole || user?.access_level === 'All Data' ||
+      (user?.access_level === 'Own Data' && (
+        t.created_by_id === user?.id ||
+        t.created_by_name === user?.name
+      ));
+    return matchSearch && matchBiz && matchType && matchDate && matchAccess;
   // เรียงจากวันที่-เวลาที่เลือกตอนลงข้อมูล ล่าสุดก่อน
   }).sort((a, b) => {
     const da = (a.date || a.created_at || '');
