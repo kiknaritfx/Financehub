@@ -1782,7 +1782,6 @@ const Transactions = ({ businesses, user }) => {
     return null;
   };
 
-  const isOwnerRole = user?.role === 'เจ้าของธุรกิจ';
   const filtered = txns.filter(t => {
     const s = search.toLowerCase();
     const matchSearch = !s || (t.category || '').toLowerCase().includes(s) || (t.created_by_name || '').includes(s) || (t.txn_id || '').toLowerCase().includes(s);
@@ -1791,18 +1790,11 @@ const Transactions = ({ businesses, user }) => {
     const dateRange = getTxnDateRange();
     let matchDate = true;
     if (dateRange && (dateRange.start || dateRange.end)) {
-      // ใช้ date (วันที่เลือกตอนลงข้อมูล) เป็นหลัก
       const txDate = (t.date || t.created_at || '').slice(0, 10);
       if (dateRange.start && txDate < dateRange.start) matchDate = false;
       if (dateRange.end && txDate > dateRange.end) matchDate = false;
     }
-    // กรองตาม access_level: Own Data = เห็นเฉพาะที่ตัวเองบันทึก, All Data = เห็นทั้งหมด
-    const matchAccess = isOwnerRole || user?.access_level === 'All Data' ||
-      (user?.access_level === 'Own Data' && (
-        t.created_by_id === user?.id ||
-        t.created_by_name === user?.name
-      ));
-    return matchSearch && matchBiz && matchType && matchDate && matchAccess;
+    return matchSearch && matchBiz && matchType && matchDate;
   // เรียงจากวันที่-เวลาที่เลือกตอนลงข้อมูล ล่าสุดก่อน
   }).sort((a, b) => {
     const da = (a.date || a.created_at || '');
@@ -3484,14 +3476,6 @@ const UserManagement = ({ businesses, onSuccess }) => {
                   </button>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {[['Own Data','👤 เห็นข้อมูลตัวเอง'],['All Data','👥 เห็นข้อมูลทั้งหมด']].map(([lvl, label]) => (
-                  <button key={lvl} type="button" onClick={() => setAccessLevel(lvl)}
-                    className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${accessLevel===lvl ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300'}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
             </section>
 
             {/* ── Section 3: สาขา ── */}
@@ -4321,15 +4305,11 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
   const closeLightbox = () => setLightbox(null);
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
 
-  const isPvOwner = user?.role === 'เจ้าของธุรกิจ';
-  const filtered = pvs.filter(p => {
-    const matchSearch = !search || (p.pv_no || '').toLowerCase().includes(search.toLowerCase())
+  const filtered = pvs.filter(p =>
+    !search || (p.pv_no || '').toLowerCase().includes(search.toLowerCase())
       || (p.pay_to || '').includes(search)
-      || (p.description || '').includes(search);
-    const matchAccess = isPvOwner || user?.access_level === 'All Data' ||
-      (user?.access_level === 'Own Data' && p.created_by === user?.name);
-    return matchSearch && matchAccess;
-  });
+      || (p.description || '').includes(search)
+  );
 
   // โหลดรูปภาพสำหรับ tx_id ที่ยังไม่เคยโหลด
   const loadImages = async (txId) => {
@@ -4792,15 +4772,11 @@ const ReceiptVouchersPage = ({ businesses, user, onSuccess }) => {
   const [search, setSearch] = useState('');
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
 
-  const isRvOwner = user?.role === 'เจ้าของธุรกิจ';
-  const filtered = rvs.filter(r => {
-    const matchSearch = !search || (r.rv_no||'').toLowerCase().includes(search.toLowerCase())
+  const filtered = rvs.filter(r =>
+    !search || (r.rv_no||'').toLowerCase().includes(search.toLowerCase())
       || (r.receiver_name||'').includes(search)
-      || (r.description||'').includes(search);
-    const matchAccess = isRvOwner || user?.access_level === 'All Data' ||
-      (user?.access_level === 'Own Data' && r.created_by === user?.name);
-    return matchSearch && matchAccess;
-  });
+      || (r.description||'').includes(search)
+  );
 
   const handleDelete = (id) => {
     if (!confirm('ลบใบสำคัญรับเงินนี้หรือไม่?')) return;
