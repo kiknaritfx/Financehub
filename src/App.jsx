@@ -200,6 +200,20 @@ const generatePVPDF = (pv, biz, settings) => {
   const approverSig = settings?.approver_sig || '';
   const payerSig   = settings?.payer_sig   || '';
 
+  // normalize field names — รองรับทั้ง field เก่าและใหม่จาก DB
+  const pvNorm = {
+    ...pv,
+    pay_method: pv.pay_method || pv.payment_method || '',
+    issue_date: pv.issue_date || pv.created_at?.slice(0, 10) || '',
+    doc_ref: pv.doc_ref || pv.txn_id || '',
+    note: pv.note || pv.remarks || '',
+    branch_no: pv.branch_no || '0',
+    wht_rate: Number(pv.wht_rate) || 0,
+    net_amount: Number(pv.net_amount) || Number(pv.amount) || 0,
+  };
+  // ใช้ pvNorm แทน pv
+  const pvRef = pvNorm;
+
   // ── ข้อมูลบริษัท: ใช้ข้อมูลบริษัทและภาษีที่กรอกในตั้งค่า ──
   const bizLines = [];
   // ชื่อนิติบุคคล/จดทะเบียน (tax_name) หรือชื่อร้าน (name)
@@ -217,17 +231,17 @@ const generatePVPDF = (pv, biz, settings) => {
   // ── ช่องทางจ่าย row ──
   const payMethodRow = `
     <div class="pay-grid">
-      <div class="pay-cell"><span class="pay-lbl">เงินสด</span><span class="pay-check">${pv.pay_method==='เงินสด'?'☑':'☐'}</span></div>
-      <div class="pay-cell"><span class="pay-lbl">โอน</span><span class="pay-check">${pv.pay_method==='โอน'?'☑':'☐'}</span></div>
-      <div class="pay-cell"><span class="pay-lbl">เช็คธนาคาร</span><span class="pay-check">${pv.pay_method==='เช็คธนาคาร'?'☑':'☐'}</span></div>
-      <div class="pay-cell"><span class="pay-lbl">สาขา</span><span class="pay-uline">${pv.branch_no||'0'}</span></div>
-      <div class="pay-cell"><span class="pay-lbl">เลขที่เช็ค</span><span class="pay-uline">${pv.pay_method==='เช็คธนาคาร'?(pv.cheque_no||'—'):'—'}</span></div>
+      <div class="pay-cell"><span class="pay-lbl">เงินสด</span><span class="pay-check">${pvRef.pay_method==='เงินสด'?'☑':'☐'}</span></div>
+      <div class="pay-cell"><span class="pay-lbl">โอน</span><span class="pay-check">${pvRef.pay_method==='โอน'?'☑':'☐'}</span></div>
+      <div class="pay-cell"><span class="pay-lbl">เช็คธนาคาร</span><span class="pay-check">${pvRef.pay_method==='เช็คธนาคาร'?'☑':'☐'}</span></div>
+      <div class="pay-cell"><span class="pay-lbl">สาขา</span><span class="pay-uline">${pvRef.branch_no||'0'}</span></div>
+      <div class="pay-cell"><span class="pay-lbl">เลขที่เช็ค</span><span class="pay-uline">${pvRef.pay_method==='เช็คธนาคาร'?(pvRef.cheque_no||'—'):'—'}</span></div>
     </div>`;
 
   // ── WHT calculation ──
-  const pvWhtRate = Number(pv.wht_rate) || 0;
-  const pvWhtAmt = Math.round(Number(pv.amount) * pvWhtRate / 100 * 100) / 100;
-  const pvNet = Number(pv.amount) - pvWhtAmt;
+  const pvWhtRate = pvRef.wht_rate;
+  const pvWhtAmt = Math.round(Number(pvRef.amount) * pvWhtRate / 100 * 100) / 100;
+  const pvNet = pvRef.net_amount || (Number(pvRef.amount) - pvWhtAmt);
 
   // ── 8 แถวว่าง ──
   const emptyRows = Array(8).fill('')
@@ -249,7 +263,7 @@ const generatePVPDF = (pv, biz, settings) => {
     </tr>`;
 
   const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
-<title>${pv.pv_no} - ใบสำคัญจ่าย</title>
+<title>${pvRef.pv_no} - ใบสำคัญจ่าย</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -314,14 +328,14 @@ table.items tbody tr:last-child td{border-bottom:none;}
     <div class="doc-sub-en">PAYMENT VOUCHER</div>
   </div>
   <div class="doc-meta">
-    <div class="doc-meta-row"><div class="doc-meta-label">เลขที่</div><div class="doc-meta-val">${pv.pv_no}</div></div>
-    <div class="doc-meta-row"><div class="doc-meta-label">วันที่</div><div class="doc-meta-val">${pv.issue_date||''}</div></div>
+    <div class="doc-meta-row"><div class="doc-meta-label">เลขที่</div><div class="doc-meta-val">${pvRef.pv_no}</div></div>
+    <div class="doc-meta-row"><div class="doc-meta-label">วันที่</div><div class="doc-meta-val">${pvRef.issue_date||''}</div></div>
   </div>
 </div>
 
 <div class="payto-row">
   <span class="payto-lbl">จ่ายให้แก่</span>
-  <span class="payto-val">${pv.pay_to||''}</span>
+  <span class="payto-val">${pvRef.pay_to||''}</span>
 </div>
 
 ${payMethodRow}
@@ -335,14 +349,14 @@ ${payMethodRow}
   </tr></thead>
   <tbody>
     <tr>
-      <td>${pv.issue_date||''}</td>
-      <td>${pv.doc_ref||''}</td>
-      <td>${pv.description||''}</td>
-      <td style="text-align:right;font-weight:700">${fmt(pv.amount)}</td>
+      <td>${pvRef.issue_date||''}</td>
+      <td>${pvRef.doc_ref||''}</td>
+      <td>${pvRef.description||''}</td>
+      <td style="text-align:right;font-weight:700">${fmt(pvRef.amount)}</td>
     </tr>
     ${emptyRows}
     <tr style="border-top:2px solid #1e293b;background:#f8fafc">
-      <td colspan="2" style="padding:6px 12px;font-size:11px;color:#64748b;">หมายเหตุ: ${pv.note||'—'}</td>
+      <td colspan="2" style="padding:6px 12px;font-size:11px;color:#64748b;">หมายเหตุ: ${pvRef.note||'—'}</td>
       <td style="text-align:right;font-weight:700;padding:6px 12px;">รวมเงิน</td>
       <td style="text-align:right;font-weight:800;padding:6px 12px;">${fmt(pv.amount)}</td>
     </tr>
@@ -1464,7 +1478,20 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
       });
       onSaved('บันทึกใบสำคัญจ่ายสำเร็จ ✅');
       const freshSettings = await pvAPI.getSettings().catch(() => ({}));
-      generatePVPDF(pv, biz, freshSettings);
+      // merge ข้อมูลที่ส่งไปกับที่ได้กลับ — ป้องกันกรณี DB ยังไม่มี column
+      const pvForPdf = {
+        issue_date: txDate,
+        doc_ref: docRef,
+        pay_method: payMethod,
+        cheque_no: chequeNo,
+        cheque_date: chequeDate,
+        branch_no: branchNo,
+        note,
+        wht_rate: Number(whtRate),
+        net_amount: netAmount,
+        ...pv,
+      };
+      generatePVPDF(pvForPdf, biz, freshSettings);
     } catch(e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
     finally { setSaving(false); }
   };
