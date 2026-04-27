@@ -72,3 +72,27 @@ export const documentAPI = {
   updateStatus: (id, status) => request(`/documents/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   delete: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
 };
+
+export const pvAPI = {
+  getAll: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/payment-vouchers${q ? '?' + q : ''}`);
+  },
+  create: (data) => request('/payment-vouchers', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/payment-vouchers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => request(`/payment-vouchers/${id}`, { method: 'DELETE' }),
+  getSettings: () => request('/voucher-settings/pv'),
+  saveSettings: (data) => request('/voucher-settings/pv', { method: 'POST', body: JSON.stringify(data) }),
+};
+
+export const rvAPI = {
+  getAll: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/receipt-vouchers${q ? '?' + q : ''}`);
+  },
+  create: (data) => request('/receipt-vouchers', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/receipt-vouchers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => request(`/receipt-vouchers/${id}`, { method: 'DELETE' }),
+  getSettings: (bizId) => request(`/voucher-settings/rv${bizId ? '?business_id=' + bizId : ''}`),
+  saveSettings: (data) => request('/voucher-settings/rv', { method: 'POST', body: JSON.stringify(data) }),
+};

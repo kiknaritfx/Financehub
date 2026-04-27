@@ -661,3 +661,169 @@ route('delete', '/api/documents/:id', async (req, res) => {
   try { await pool.query('DELETE FROM documents WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// ─── PAYMENT VOUCHERS ───────────────────────────────────────────────
+
+// GET all PVs
+route('get', '/api/payment-vouchers', async (req, res) => {
+  try {
+    const { business_id } = req.query;
+    let q = 'SELECT * FROM payment_vouchers';
+    const params = [];
+    if (business_id) { q += ' WHERE business_id=$1'; params.push(business_id); }
+    q += ' ORDER BY created_at DESC';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST create PV
+route('post', '/api/payment-vouchers', async (req, res) => {
+  try {
+    const { pv_no, business_id, tx_id, pay_to, description, amount, payment_method, remarks, created_by } = req.body;
+    const r = await pool.query(
+      `INSERT INTO payment_vouchers (pv_no, business_id, tx_id, pay_to, description, amount, payment_method, remarks, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [pv_no, business_id, tx_id || null, pay_to, description, amount, payment_method || 'petty_cash', remarks, created_by]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT update PV
+route('put', '/api/payment-vouchers/:id', async (req, res) => {
+  try {
+    const { pv_no, pay_to, description, amount, payment_method, remarks } = req.body;
+    const r = await pool.query(
+      `UPDATE payment_vouchers SET pv_no=$1, pay_to=$2, description=$3, amount=$4, payment_method=$5, remarks=$6, updated_at=NOW()
+       WHERE id=$7 RETURNING *`,
+      [pv_no, pay_to, description, amount, payment_method, remarks, req.params.id]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE PV
+route('delete', '/api/payment-vouchers/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM payment_vouchers WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── VOUCHER SETTINGS (PV) ───────────────────────────────────────────
+
+route('get', '/api/voucher-settings/pv', async (req, res) => {
+  try {
+    const r = await pool.query(
+      "SELECT * FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1"
+    );
+    res.json(r.rows[0] || {});
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+route('post', '/api/voucher-settings/pv', async (req, res) => {
+  try {
+    const { prefix, running, approver_name, payer_name, approver_sig, payer_sig } = req.body;
+    const r = await pool.query(
+      `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running, approver_name, payer_name, approver_sig, payer_sig)
+       VALUES ('pv', NULL, $1, $2, $3, $4, $5, $6)
+       ON CONFLICT (voucher_type, business_id) DO UPDATE
+       SET prefix=$1, running=$2, approver_name=$3, payer_name=$4, approver_sig=$5, payer_sig=$6
+       RETURNING *`,
+      [prefix, running ?? 0, approver_name, payer_name, approver_sig, payer_sig]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── RECEIPT VOUCHERS ────────────────────────────────────────────────
+
+// GET all RVs
+route('get', '/api/receipt-vouchers', async (req, res) => {
+  try {
+    const { business_id } = req.query;
+    let q = 'SELECT * FROM receipt_vouchers';
+    const params = [];
+    if (business_id) { q += ' WHERE business_id=$1'; params.push(business_id); }
+    q += ' ORDER BY created_at DESC';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST create RV
+route('post', '/api/receipt-vouchers', async (req, res) => {
+  try {
+    const { rv_no, business_id, receiver_name, id_number, receiver_address, items, description, amount, wht_rate, issue_date, created_by } = req.body;
+    const r = await pool.query(
+      `INSERT INTO receipt_vouchers (rv_no, business_id, receiver_name, id_number, receiver_address, items, description, amount, wht_rate, issue_date, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [rv_no, business_id, receiver_name, id_number, receiver_address, JSON.stringify(items || []), description, amount, wht_rate || 0, issue_date, created_by]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT update RV
+route('put', '/api/receipt-vouchers/:id', async (req, res) => {
+  try {
+    const { rv_no, receiver_name, id_number, receiver_address, items, description, amount, wht_rate, issue_date } = req.body;
+    const r = await pool.query(
+      `UPDATE receipt_vouchers SET rv_no=$1, receiver_name=$2, id_number=$3, receiver_address=$4, items=$5,
+       description=$6, amount=$7, wht_rate=$8, issue_date=$9, updated_at=NOW() WHERE id=$10 RETURNING *`,
+      [rv_no, receiver_name, id_number, receiver_address, JSON.stringify(items || []), description, amount, wht_rate || 0, issue_date, req.params.id]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE RV
+route('delete', '/api/receipt-vouchers/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM receipt_vouchers WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── VOUCHER SETTINGS (RV) ───────────────────────────────────────────
+
+route('get', '/api/voucher-settings/rv', async (req, res) => {
+  try {
+    const { business_id } = req.query;
+    // global settings (prefix, running)
+    const global = await pool.query(
+      "SELECT * FROM voucher_settings WHERE voucher_type='rv' AND business_id IS NULL LIMIT 1"
+    );
+    // per-business settings (sig)
+    let biz = { rows: [{}] };
+    if (business_id) {
+      biz = await pool.query(
+        "SELECT * FROM voucher_settings WHERE voucher_type='rv' AND business_id=$1 LIMIT 1", [business_id]
+      );
+    }
+    res.json({ global: global.rows[0] || {}, biz: biz.rows[0] || {} });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+route('post', '/api/voucher-settings/rv', async (req, res) => {
+  try {
+    const { prefix, running, payer_name, payer_sig, receiver_sig, business_id } = req.body;
+    if (business_id) {
+      // per-business sig settings
+      await pool.query(
+        `INSERT INTO voucher_settings (voucher_type, business_id, payer_name, payer_sig, receiver_sig)
+         VALUES ('rv', $1, $2, $3, $4)
+         ON CONFLICT (voucher_type, business_id) DO UPDATE
+         SET payer_name=$2, payer_sig=$3, receiver_sig=$4`,
+        [business_id, payer_name, payer_sig, receiver_sig]
+      );
+    } else {
+      // global prefix+running
+      await pool.query(
+        `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running)
+         VALUES ('rv', NULL, $1, $2)
+         ON CONFLICT (voucher_type, business_id) DO UPDATE
+         SET prefix=$1, running=$2`,
+        [prefix, running ?? 0]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});

@@ -11,59 +11,7 @@ import {
   Phone, Shield, Lightbulb, CheckSquare, Lock, User, CalendarDays,
   Loader2, RotateCw
 } from 'lucide-react';
-import { businessAPI, transactionAPI, userAPI, reportAPI, auditAPI, imageAPI, documentAPI } from './api.js';
-
-// ─── PAYMENT VOUCHER API (localStorage) ───────────────────────────────
-const pvAPI = {
-  _key: 'fh_payment_vouchers',
-  _settingsKey: 'fh_pv_settings',
-  getAll: () => { try { return JSON.parse(localStorage.getItem('fh_payment_vouchers') || '[]'); } catch { return []; } },
-  save: (pv) => {
-    const list = pvAPI.getAll();
-    if (pv.id) { const i = list.findIndex(p => p.id === pv.id); if (i >= 0) list[i] = pv; else list.unshift(pv); }
-    else { pv.id = Date.now(); list.unshift(pv); }
-    localStorage.setItem('fh_payment_vouchers', JSON.stringify(list)); return pv;
-  },
-  delete: (id) => { localStorage.setItem('fh_payment_vouchers', JSON.stringify(pvAPI.getAll().filter(p => p.id !== id))); },
-  getSettings: () => { try { return JSON.parse(localStorage.getItem('fh_pv_settings') || '{}'); } catch { return {}; } },
-  saveSettings: (s) => { localStorage.setItem('fh_pv_settings', JSON.stringify(s)); return s; },
-};
-
-
-// ─── RECEIPT VOUCHER API (localStorage) ─────────────────────────────
-const rvAPI = {
-  getAll: () => { try { return JSON.parse(localStorage.getItem('fh_receipt_vouchers') || '[]'); } catch { return []; } },
-  save: (rv) => {
-    const list = rvAPI.getAll();
-    if (rv.id) { const i = list.findIndex(r => r.id === rv.id); if (i >= 0) list[i] = rv; else list.unshift(rv); }
-    else { rv.id = Date.now(); list.unshift(rv); }
-    localStorage.setItem('fh_receipt_vouchers', JSON.stringify(list)); return rv;
-  },
-  delete: (id) => { localStorage.setItem('fh_receipt_vouchers', JSON.stringify(rvAPI.getAll().filter(r => r.id !== id))); },
-  // settings แยกตาม bizId — prefix/running เป็น global, sig/payer แยกตาม biz
-  getSettings: (bizId) => {
-    try {
-      const global = JSON.parse(localStorage.getItem('fh_rv_settings') || '{}');
-      if (!bizId) return global;
-      const biz = JSON.parse(localStorage.getItem('fh_rv_settings_' + bizId) || '{}');
-      return { ...global, ...biz };
-    } catch { return {}; }
-  },
-  saveSettings: (s, bizId) => {
-    if (!bizId) {
-      localStorage.setItem('fh_rv_settings', JSON.stringify(s));
-    } else {
-      // global: prefix, running
-      const global = JSON.parse(localStorage.getItem('fh_rv_settings') || '{}');
-      localStorage.setItem('fh_rv_settings', JSON.stringify({ ...global, prefix: s.prefix, running: s.running }));
-      // per-biz: payer_name, payer_sig, receiver_sig
-      localStorage.setItem('fh_rv_settings_' + bizId, JSON.stringify({
-        payer_name: s.payer_name, payer_sig: s.payer_sig, receiver_sig: s.receiver_sig,
-      }));
-    }
-    return s;
-  },
-};
+import { businessAPI, transactionAPI, userAPI, reportAPI, auditAPI, imageAPI, documentAPI, pvAPI, rvAPI } from './api.js';
 
 // ─── SHARED UTILITY: แปลงตัวเลขเป็นตัวอักษรภาษาไทย ───────────────────
 const bahtText = (n) => {
@@ -84,8 +32,7 @@ const bahtText = (n) => {
 };
 
 // ─── GENERATE RECEIPT VOUCHER PDF ───────────────────────────────────────
-const generateRVPDF = (rv, biz) => {
-  const settings = rvAPI.getSettings(rv.business_id);
+const generateRVPDF = (rv, biz, settings = {}) => {
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
   const gross = Number(rv.amount) || 0;
   const whtRate = Number(rv.wht_rate) || 0;
@@ -1426,10 +1373,8 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
 // ─── PAYMENT VOUCHER FORM ───────────────────────────────────────────
 const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
   const biz = businesses.find(b => String(b.id) === String(tx.business_id));
-  const settings = pvAPI.getSettings();
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
   const bahtText = (n) => {
-    // แปลงตัวเลขเป็นคำอ่านไทย (ย่อ)
     const units = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
     const pos = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
     const num = Math.round(Number(n) || 0);
@@ -1447,17 +1392,22 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
   };
 
   const txDate = (tx.date || tx.created_at || '').slice(0, 10);
-  const [pvNo] = useState(() => {
-    const s = pvAPI.getSettings();
-    const prefix = s.prefix || 'PV';
-    const now = new Date();
-    const yy = String(now.getFullYear() + 543).slice(-2);
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const running = (s.running || 0) + 1;
-    return `${prefix}-${yy}${mm}-${String(running).padStart(3, '0')}`;
-  });
+  const [pvNo, setPvNo] = useState('');
+  const [settings, setSettings] = useState({});
   const [payTo, setPayTo] = useState('');
   const [docRef, setDocRef] = useState('');
+
+  useEffect(() => {
+    pvAPI.getSettings().then(s => {
+      setSettings(s || {});
+      const prefix = (s && s.prefix) || 'PV';
+      const now = new Date();
+      const yy = String(now.getFullYear() + 543).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const running = ((s && s.running) || 0) + 1;
+      setPvNo(`${prefix}-${yy}${mm}-${String(running).padStart(3, '0')}`);
+    }).catch(() => {});
+  }, []);
   const [description, setDescription] = useState(tx.category || '');
   const [amount] = useState(tx.amount || 0);
   const [payMethod, setPayMethod] = useState('โอน');
@@ -1467,14 +1417,13 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!payTo.trim()) return alert('กรุณาระบุชื่อร้านค้า/ผู้รับเงิน');
     setSaving(true);
     try {
       // update running number
-      const s = pvAPI.getSettings();
-      pvAPI.saveSettings({ ...s, running: (s.running || 0) + 1 });
-      const pv = pvAPI.save({
+      await pvAPI.saveSettings({ ...settings, running: (settings.running || 0) + 1 });
+      const pv = await pvAPI.create({
         pv_no: pvNo,
         tx_id: tx.id,
         txn_id: tx.txn_id,
@@ -1491,10 +1440,10 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
         note,
         issue_date: txDate,
         created_by: user?.name || 'Admin',
-        created_at: new Date().toISOString(),
       });
       onSaved('บันทึกใบสำคัญจ่ายสำเร็จ ✅');
-      generatePVPDF(pv, biz, pvAPI.getSettings());
+      const freshSettings = await pvAPI.getSettings().catch(() => ({}));
+      generatePVPDF(pv, biz, freshSettings);
     } catch(e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
     finally { setSaving(false); }
   };
@@ -1763,8 +1712,13 @@ const Transactions = ({ businesses, user }) => {
     a.click();
   };
 
-  // รายการ tx_id ที่ออกใบสำคัญจ่ายไปแล้ว
-  const issuedPvTxIds = new Set(pvAPI.getAll().map(p => String(p.tx_id)));
+  const [issuedPvTxIds, setIssuedPvTxIds] = useState(new Set());
+
+  useEffect(() => {
+    pvAPI.getAll().then(list => {
+      setIssuedPvTxIds(new Set(Array.isArray(list) ? list.map(p => String(p.tx_id)) : []));
+    }).catch(() => {});
+  }, []);
 
   const getTxnDateRange = () => {
     const now = new Date();
@@ -4291,19 +4245,26 @@ const PVEditModal = ({ pv, businesses, onClose, onSaved }) => {
 
 // ─── PAYMENT VOUCHERS PAGE ──────────────────────────
 const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
-  const [pvs, setPvs] = useState(() => pvAPI.getAll());
+  const [pvs, setPvs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [previewPv, setPreviewPv] = useState(null);
   const [editPv, setEditPv] = useState(null);
-  // รูปภาพ: { [tx_id]: [{id, file_data, file_name}] }
   const [pvImages, setPvImages] = useState({});
   const [loadingImages, setLoadingImages] = useState({});
-  // Lightbox สำหรับดูรูปขนาดเต็ม
-  const [lightbox, setLightbox] = useState(null); // { images: [], index: 0 }
+  const [lightbox, setLightbox] = useState(null);
   const openLightbox = (images, index = 0) => setLightbox({ images, index });
   const closeLightbox = () => setLightbox(null);
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
+
+  const loadPvs = useCallback(async () => {
+    setLoading(true);
+    try { setPvs(await pvAPI.getAll()); } catch { setPvs([]); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { loadPvs(); }, [loadPvs]);
 
   const filtered = pvs.filter(p =>
     !search || (p.pv_no || '').toLowerCase().includes(search.toLowerCase())
@@ -4330,16 +4291,19 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
     pvs.forEach(pv => { if (pv.tx_id) loadImages(pv.tx_id); });
   }, [pvs]);
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (!confirm('ลบใบสำคัญจ่ายนี้หรือไม่?')) return;
-    pvAPI.delete(id);
-    setPvs(pvAPI.getAll());
-    onSuccess('ลบสำเร็จ');
+    try {
+      await pvAPI.delete(id);
+      await loadPvs();
+      onSuccess('ลบสำเร็จ');
+    } catch { onSuccess('เกิดข้อผิดพลาด', 'error'); }
   };
 
-  const handleReprint = (pv) => {
+  const handleReprint = async (pv) => {
     const biz = businesses.find(b => String(b.id) === String(pv.business_id));
-    generatePVPDF(pv, biz, pvAPI.getSettings());
+    const settings = await pvAPI.getSettings().catch(() => ({}));
+    generatePVPDF(pv, biz, settings);
   };
 
   return (
@@ -4579,11 +4543,13 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
       {editPv && (
         <PVEditModal pv={editPv} businesses={businesses}
           onClose={() => setEditPv(null)}
-          onSaved={(updated) => {
-            pvAPI.save(updated);
-            setPvs(pvAPI.getAll());
-            setEditPv(null);
-            onSuccess('แก้ไขใบสำคัญจ่ายสำเร็จ ✅');
+          onSaved={async (updated) => {
+            try {
+              await pvAPI.update(updated.id, updated);
+              await loadPvs();
+              setEditPv(null);
+              onSuccess('แก้ไขใบสำคัญจ่ายสำเร็จ ✅');
+            } catch { onSuccess('เกิดข้อผิดพลาด', 'error'); }
           }} />
       )}
 
@@ -4654,20 +4620,29 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
 const RVSettings = ({ businesses, onClose }) => {
   const activeBiz = businesses.filter(b => b.status === 'Active');
   const [bizId, setBizId] = useState(activeBiz[0]?.id || '');
-  const globalS = rvAPI.getSettings();
-  const [prefix, setPrefix] = useState(globalS.prefix || 'RV');
-
-  // load per-biz settings เมื่อ bizId เปลี่ยน
+  const [prefix, setPrefix] = useState('RV');
   const [payerName, setPayerName] = useState('');
   const [payerSig, setPayerSig] = useState('');
   const [receiverSig, setReceiverSig] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // load global settings (prefix) once
   useEffect(() => {
-    const s = rvAPI.getSettings(bizId);
-    setPayerName(s.payer_name || '');
-    setPayerSig(s.payer_sig || '');
-    setReceiverSig(s.receiver_sig || '');
+    rvAPI.getSettings().then(data => {
+      const g = data?.global || data || {};
+      setPrefix(g.prefix || 'RV');
+    }).catch(() => {});
+  }, []);
+
+  // load per-biz settings เมื่อ bizId เปลี่ยน
+  useEffect(() => {
+    if (!bizId) return;
+    rvAPI.getSettings(bizId).then(data => {
+      const b = data?.biz || {};
+      setPayerName(b.payer_name || '');
+      setPayerSig(b.payer_sig || '');
+      setReceiverSig(b.receiver_sig || '');
+    }).catch(() => {});
   }, [bizId]);
 
   const handleSigUpload = (e, who) => {
@@ -4681,10 +4656,16 @@ const RVSettings = ({ businesses, onClose }) => {
     e.target.value = '';
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
-    rvAPI.saveSettings({ prefix, payer_name: payerName, payer_sig: payerSig, receiver_sig: receiverSig }, bizId);
-    setTimeout(() => { setSaving(false); onClose(true); }, 300);
+    try {
+      // save global prefix
+      await rvAPI.saveSettings({ prefix });
+      // save per-biz sigs
+      await rvAPI.saveSettings({ payer_name: payerName, payer_sig: payerSig, receiver_sig: receiverSig, business_id: bizId });
+      onClose(true);
+    } catch { onClose(false); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -4765,12 +4746,21 @@ const WHT_RATES = [
 ];
 
 const ReceiptVouchersPage = ({ businesses, user, onSuccess }) => {
-  const [rvs, setRvs] = useState(() => rvAPI.getAll());
+  const [rvs, setRvs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editRv, setEditRv] = useState(null);
   const [search, setSearch] = useState('');
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
+
+  const loadRvs = useCallback(async () => {
+    setLoading(true);
+    try { setRvs(await rvAPI.getAll()); } catch { setRvs([]); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { loadRvs(); }, [loadRvs]);
 
   const filtered = rvs.filter(r =>
     !search || (r.rv_no||'').toLowerCase().includes(search.toLowerCase())
@@ -4778,14 +4768,20 @@ const ReceiptVouchersPage = ({ businesses, user, onSuccess }) => {
       || (r.description||'').includes(search)
   );
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (!confirm('ลบใบสำคัญรับเงินนี้หรือไม่?')) return;
-    rvAPI.delete(id); setRvs(rvAPI.getAll()); onSuccess('ลบสำเร็จ');
+    try {
+      await rvAPI.delete(id);
+      await loadRvs();
+      onSuccess('ลบสำเร็จ');
+    } catch { onSuccess('เกิดข้อผิดพลาด', 'error'); }
   };
 
-  const handlePrint = (rv) => {
+  const handlePrint = async (rv) => {
     const biz = businesses.find(b => String(b.id) === String(rv.business_id));
-    generateRVPDF(rv, biz);
+    const settingsData = await rvAPI.getSettings(rv.business_id).catch(() => ({}));
+    const merged = { ...(settingsData.global || {}), ...(settingsData.biz || {}) };
+    generateRVPDF(rv, biz, merged);
   };
 
   const openNew = () => { setEditRv(null); setIsFormOpen(true); };
@@ -4909,12 +4905,16 @@ const ReceiptVouchersPage = ({ businesses, user, onSuccess }) => {
         title={editRv ? 'แก้ไขใบสำคัญรับเงิน' : 'สร้างใบสำคัญรับเงิน'}
         description="กรอกข้อมูลผู้รับเงินและรายการ">
         <RVForm businesses={businesses} editRv={editRv} user={user}
-          onClose={(saved, rv, biz) => {
+          onClose={async (saved, rv, biz) => {
             setIsFormOpen(false);
             if (saved) {
-              setRvs(rvAPI.getAll());
+              await loadRvs();
               onSuccess(editRv ? 'แก้ไขสำเร็จ' : 'สร้างใบสำคัญรับเงินสำเร็จ ✅');
-              if (rv && biz) generateRVPDF(rv, biz);
+              if (rv && biz) {
+                const settingsData = await rvAPI.getSettings(rv.business_id).catch(() => ({}));
+                const merged = { ...(settingsData.global || {}), ...(settingsData.biz || {}) };
+                generateRVPDF(rv, biz, merged);
+              }
             }
           }} />
       </Drawer>
@@ -4946,33 +4946,42 @@ const RVForm = ({ businesses, editRv, user, onClose }) => {
   const whtAmt = Math.round(gross * Number(whtRate) / 100 * 100) / 100;
   const net = gross - whtAmt;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!receiverName.trim()) return alert('กรุณาระบุชื่อผู้รับเงิน');
     if (items.some(it => !it.description.trim())) return alert('กรุณาระบุรายการทุกแถว');
     if (items.some(it => !it.amount || Number(it.amount) <= 0)) return alert('กรุณาระบุจำนวนเงินทุกแถว');
     setSaving(true);
-    const s = rvAPI.getSettings();
-    let rvNo = editRv?.rv_no;
-    if (!rvNo) {
-      const prefix = s.prefix || 'RV';
-      const running = (s.running || 0) + 1;
-      const now = new Date(new Date().getTime() + 7*60*60*1000);
-      const yy = String(now.getFullYear() + 543).slice(-2);
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      rvNo = `${prefix}-${yy}${mm}-${String(running).padStart(3, '0')}`;
-      rvAPI.saveSettings({ ...s, running });
+    try {
+      const settingsData = await rvAPI.getSettings().catch(() => ({}));
+      const s = settingsData.global || settingsData || {};
+      let rvNo = editRv?.rv_no;
+      if (!rvNo) {
+        const prefix = s.prefix || 'RV';
+        const running = (s.running || 0) + 1;
+        const now = new Date(new Date().getTime() + 7*60*60*1000);
+        const yy = String(now.getFullYear() + 543).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        rvNo = `${prefix}-${yy}${mm}-${String(running).padStart(3, '0')}`;
+        await rvAPI.saveSettings({ prefix, running });
+      }
+      const payload = {
+        rv_no: rvNo, business_id: bizId, receiver_name: receiverName,
+        id_number: idNumber, receiver_address: receiverAddress,
+        items: items.map(it => ({ ...it, amount: Number(it.amount) })),
+        description: items.map(it => it.description).join(', '),
+        amount: gross, wht_rate: Number(whtRate),
+        issue_date: issueDate,
+        created_by: editRv?.created_by || user?.name || 'Admin',
+      };
+      const rv = editRv?.id
+        ? await rvAPI.update(editRv.id, payload)
+        : await rvAPI.create(payload);
+      setSaving(false);
+      onClose(true, rv, businesses.find(b => String(b.id) === String(bizId)));
+    } catch(e) {
+      setSaving(false);
+      alert('เกิดข้อผิดพลาด: ' + e.message);
     }
-    const rv = rvAPI.save({
-      id: editRv?.id,
-      rv_no: rvNo, business_id: bizId, receiver_name: receiverName,
-      id_number: idNumber, receiver_address: receiverAddress,
-      items: items.map(it => ({ ...it, amount: Number(it.amount) })),
-      description: items.map(it => it.description).join(', '),
-      amount: gross, wht_rate: Number(whtRate),
-      issue_date: issueDate, created_at: editRv?.created_at || new Date().toISOString(),
-      created_by: editRv?.created_by || user?.name || 'Admin',
-    });
-    setTimeout(() => { setSaving(false); onClose(true, rv, businesses.find(b => String(b.id) === String(bizId))); }, 200);
   };
 
   return (
@@ -5084,13 +5093,24 @@ const RVForm = ({ businesses, editRv, user, onClose }) => {
 
 // ─── PV SETTINGS ────────────────────────────────────
 const PVSettings = ({ onClose }) => {
-  const s = pvAPI.getSettings();
-  const [prefix, setPrefix] = useState(s.prefix || 'PV');
-  const [approverName, setApproverName] = useState(s.approver_name || '');
-  const [payerName, setPayerName] = useState(s.payer_name || '');
-  const [approverSig, setApproverSig] = useState(s.approver_sig || '');
-  const [payerSig, setPayerSig] = useState(s.payer_sig || '');
+  const [prefix, setPrefix] = useState('PV');
+  const [approverName, setApproverName] = useState('');
+  const [payerName, setPayerName] = useState('');
+  const [approverSig, setApproverSig] = useState('');
+  const [payerSig, setPayerSig] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    pvAPI.getSettings().then(s => {
+      if (s) {
+        setPrefix(s.prefix || 'PV');
+        setApproverName(s.approver_name || '');
+        setPayerName(s.payer_name || '');
+        setApproverSig(s.approver_sig || '');
+        setPayerSig(s.payer_sig || '');
+      }
+    }).catch(() => {});
+  }, []);
 
   const handleSigUpload = (e, who) => {
     const file = e.target.files[0]; if (!file) return;
@@ -5103,10 +5123,13 @@ const PVSettings = ({ onClose }) => {
     e.target.value = '';
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
-    pvAPI.saveSettings({ ...s, prefix, approver_name: approverName, payer_name: payerName, approver_sig: approverSig, payer_sig: payerSig });
-    setTimeout(() => { setSaving(false); onClose(true); }, 300);
+    try {
+      await pvAPI.saveSettings({ prefix, approver_name: approverName, payer_name: payerName, approver_sig: approverSig, payer_sig: payerSig });
+      onClose(true);
+    } catch { onClose(false); }
+    finally { setSaving(false); }
   };
 
   return (
