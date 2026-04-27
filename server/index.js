@@ -44,6 +44,14 @@ async function runMigrations() {
 }
 runMigrations();
 
+// Strip null bytes (\u0000) that PostgreSQL UTF8 rejects
+const cleanStr = (v) => (typeof v === 'string' ? v.replace(/\u0000/g, '') : v);
+const cleanObj = (obj) => {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(cleanObj);
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, cleanObj(v)]));
+};
+
 // ─── Helper: register route with both /api/xxx and /xxx (Vercel fallback) ───
 function route(method, path, handler) {
   app[method](path, handler);
@@ -757,7 +765,7 @@ route('post', '/api/receipt-vouchers', async (req, res) => {
     const r = await pool.query(
       `INSERT INTO receipt_vouchers (rv_no, business_id, receiver_name, id_number, receiver_address, items, description, amount, wht_rate, issue_date, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [rv_no, business_id, receiver_name, id_number, receiver_address, JSON.stringify(items || []), description, amount, wht_rate || 0, issue_date, created_by]
+      [cleanStr(rv_no), business_id, cleanStr(receiver_name), cleanStr(id_number), cleanStr(receiver_address), JSON.stringify(cleanObj(items || [])), cleanStr(description), amount, wht_rate || 0, issue_date, cleanStr(created_by)]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -770,7 +778,7 @@ route('put', '/api/receipt-vouchers/:id', async (req, res) => {
     const r = await pool.query(
       `UPDATE receipt_vouchers SET rv_no=$1, receiver_name=$2, id_number=$3, receiver_address=$4, items=$5,
        description=$6, amount=$7, wht_rate=$8, issue_date=$9, updated_at=NOW() WHERE id=$10 RETURNING *`,
-      [rv_no, receiver_name, id_number, receiver_address, JSON.stringify(items || []), description, amount, wht_rate || 0, issue_date, req.params.id]
+      [cleanStr(rv_no), cleanStr(receiver_name), cleanStr(id_number), cleanStr(receiver_address), JSON.stringify(cleanObj(items || [])), cleanStr(description), amount, wht_rate || 0, issue_date, req.params.id]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
