@@ -689,7 +689,10 @@ route('get', '/api/payment-vouchers', async (req, res) => {
 // POST create PV — server generates pv_no atomically
 route('post', '/api/payment-vouchers', async (req, res) => {
   try {
-    const { business_id, tx_id, pay_to, description, amount, wht_rate, net_amount, payment_method, remarks, created_by } = req.body;
+    const { business_id, tx_id, pay_to, description, amount, wht_rate, net_amount,
+            payment_method, remarks, created_by, issue_date, doc_ref,
+            pay_method, cheque_no, cheque_date, branch_no, note,
+            txn_id, business_name } = req.body;
     let { pv_no } = req.body;
 
     // Auto-generate pv_no — increment running atomically using UPDATE...RETURNING
@@ -714,9 +717,18 @@ route('post', '/api/payment-vouchers', async (req, res) => {
     }
 
     const r = await pool.query(
-      `INSERT INTO payment_vouchers (pv_no, business_id, tx_id, pay_to, description, amount, wht_rate, net_amount, payment_method, remarks, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [pv_no, business_id, tx_id || null, pay_to, description, amount, wht_rate || 0, net_amount ?? amount, payment_method || 'petty_cash', remarks, created_by]
+      `INSERT INTO payment_vouchers
+         (pv_no, business_id, tx_id, txn_id, pay_to, description, amount, wht_rate, net_amount,
+          payment_method, pay_method, cheque_no, cheque_date, branch_no, note, remarks,
+          issue_date, doc_ref, business_name, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+      [pv_no, business_id, tx_id || null, txn_id || null, pay_to, description,
+       amount, wht_rate || 0, net_amount ?? amount,
+       payment_method || pay_method || 'petty_cash',
+       pay_method || payment_method || 'petty_cash',
+       cheque_no || null, cheque_date || null, branch_no || '0',
+       note || null, remarks || null,
+       issue_date || null, doc_ref || null, business_name || null, created_by]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
