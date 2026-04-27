@@ -1392,22 +1392,20 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
   };
 
   const txDate = (tx.date || tx.created_at || '').slice(0, 10);
-  const [pvNo, setPvNo] = useState('');
-  const [settings, setSettings] = useState({});
-  const [payTo, setPayTo] = useState('');
-  const [docRef, setDocRef] = useState('');
+  const [pvNoPreview, setPvNoPreview] = useState('กำลังโหลด...');
 
   useEffect(() => {
     pvAPI.getSettings().then(s => {
-      setSettings(s || {});
       const prefix = (s && s.prefix) || 'PV';
       const now = new Date();
       const yy = String(now.getFullYear() + 543).slice(-2);
       const mm = String(now.getMonth() + 1).padStart(2, '0');
       const running = ((s && s.running) || 0) + 1;
-      setPvNo(`${prefix}-${yy}${mm}-${String(running).padStart(3, '0')}`);
-    }).catch(() => {});
+      setPvNoPreview(`${prefix}-${yy}${mm}-${String(running).padStart(3, '0')} (ระบบจะออกให้อัตโนมัติ)`);
+    }).catch(() => setPvNoPreview('ระบบจะออกให้อัตโนมัติ'));
   }, []);
+  const [payTo, setPayTo] = useState('');
+  const [docRef, setDocRef] = useState('');
   const [description, setDescription] = useState(tx.category || '');
   const [amount] = useState(tx.amount || 0);
   const [payMethod, setPayMethod] = useState('โอน');
@@ -1421,10 +1419,8 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
     if (!payTo.trim()) return alert('กรุณาระบุชื่อร้านค้า/ผู้รับเงิน');
     setSaving(true);
     try {
-      // update running number
-      await pvAPI.saveSettings({ ...settings, running: (settings.running || 0) + 1 });
+      // ไม่ส่ง pv_no — server จะ generate และ increment running เอง
       const pv = await pvAPI.create({
-        pv_no: pvNo,
         tx_id: tx.id,
         txn_id: tx.txn_id,
         business_id: tx.business_id,
@@ -1465,7 +1461,7 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
           <div className="grid grid-cols-2 gap-3 bg-slate-50 rounded-xl p-3">
             <div>
               <div className="text-xs text-slate-500 mb-1">เลขที่ใบสำคัญจ่าย</div>
-              <div className="font-black text-slate-800 font-mono">{pvNo}</div>
+              <div className="font-black text-slate-800 font-mono text-sm">{pvNoPreview}</div>
             </div>
             <div>
               <div className="text-xs text-slate-500 mb-1">วันที่</div>
@@ -4952,20 +4948,11 @@ const RVForm = ({ businesses, editRv, user, onClose }) => {
     if (items.some(it => !it.amount || Number(it.amount) <= 0)) return alert('กรุณาระบุจำนวนเงินทุกแถว');
     setSaving(true);
     try {
-      const settingsData = await rvAPI.getSettings().catch(() => ({}));
-      const s = settingsData.global || settingsData || {};
-      let rvNo = editRv?.rv_no;
-      if (!rvNo) {
-        const prefix = s.prefix || 'RV';
-        const running = (s.running || 0) + 1;
-        const now = new Date(new Date().getTime() + 7*60*60*1000);
-        const yy = String(now.getFullYear() + 543).slice(-2);
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
-        rvNo = `${prefix}-${yy}${mm}-${String(running).padStart(3, '0')}`;
-        await rvAPI.saveSettings({ prefix, running });
-      }
       const payload = {
-        rv_no: rvNo, business_id: bizId, receiver_name: receiverName,
+        // ไม่ส่ง rv_no ตอน create — server จะ generate เอง
+        // ถ้าเป็น edit ให้คง rv_no เดิม
+        ...(editRv?.rv_no ? { rv_no: editRv.rv_no } : {}),
+        business_id: bizId, receiver_name: receiverName,
         id_number: idNumber, receiver_address: receiverAddress,
         items: items.map(it => ({ ...it, amount: Number(it.amount) })),
         description: items.map(it => it.description).join(', '),

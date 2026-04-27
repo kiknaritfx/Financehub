@@ -685,10 +685,34 @@ route('get', '/api/payment-vouchers', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST create PV
+// POST create PV — server generates pv_no atomically
 route('post', '/api/payment-vouchers', async (req, res) => {
   try {
-    const { pv_no, business_id, tx_id, pay_to, description, amount, payment_method, remarks, created_by } = req.body;
+    const { business_id, tx_id, pay_to, description, amount, payment_method, remarks, created_by } = req.body;
+    let { pv_no } = req.body;
+
+    // Auto-generate pv_no if not provided
+    if (!pv_no) {
+      const settingsRow = await pool.query(
+        "SELECT * FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1"
+      );
+      const s = settingsRow.rows[0] || {};
+      const prefix = s.prefix || 'PV';
+      const newRunning = (s.running || 0) + 1;
+      const now = new Date();
+      // พ.ศ.
+      const yy = String(now.getFullYear() + 543).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      pv_no = `${prefix}-${yy}${mm}-${String(newRunning).padStart(3, '0')}`;
+      // Update running atomically
+      await pool.query(
+        `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running, approver_name, payer_name, approver_sig, payer_sig)
+         VALUES ('pv', NULL, $1, $2, $3, $4, $5, $6)
+         ON CONFLICT (voucher_type, business_id) DO UPDATE SET running=$2`,
+        [prefix, newRunning, s.approver_name||null, s.payer_name||null, s.approver_sig||null, s.payer_sig||null]
+      );
+    }
+
     const r = await pool.query(
       `INSERT INTO payment_vouchers (pv_no, business_id, tx_id, pay_to, description, amount, payment_method, remarks, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
@@ -761,7 +785,30 @@ route('get', '/api/receipt-vouchers', async (req, res) => {
 // POST create RV
 route('post', '/api/receipt-vouchers', async (req, res) => {
   try {
-    const { rv_no, business_id, receiver_name, id_number, receiver_address, items, description, amount, wht_rate, issue_date, created_by } = req.body;
+    const { business_id, receiver_name, id_number, receiver_address, items, description, amount, wht_rate, issue_date, created_by } = req.body;
+    let { rv_no } = req.body;
+
+    // Auto-generate rv_no if not provided
+    if (!rv_no) {
+      const settingsRow = await pool.query(
+        "SELECT * FROM voucher_settings WHERE voucher_type='rv' AND business_id IS NULL LIMIT 1"
+      );
+      const s = settingsRow.rows[0] || {};
+      const prefix = s.prefix || 'RV';
+      const newRunning = (s.running || 0) + 1;
+      const now = new Date();
+      const yy = String(now.getFullYear() + 543).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      rv_no = `${prefix}-${yy}${mm}-${String(newRunning).padStart(3, '0')}`;
+      // Update running atomically
+      await pool.query(
+        `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running)
+         VALUES ('rv', NULL, $1, $2)
+         ON CONFLICT (voucher_type, business_id) DO UPDATE SET running=$2`,
+        [prefix, newRunning]
+      );
+    }
+
     const r = await pool.query(
       `INSERT INTO receipt_vouchers (rv_no, business_id, receiver_name, id_number, receiver_address, items, description, amount, wht_rate, issue_date, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
