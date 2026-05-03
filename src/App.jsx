@@ -3025,11 +3025,6 @@ const generatePLPDF = ({ data, businesses, selectedBiz, period, customStart, cus
   }));
   const rows = useCategory ? categoryRows : expenseRows;
 
-  // สร้าง empty rows ให้ครบ 20 แถว
-  const totalRows = 20;
-  const filledRows = rows.length;
-  const emptyCount = Math.max(0, totalRows - filledRows);
-
   const rowsHTML = rows.map(r => `
     <tr>
       <td class="center">${r.num}</td>
@@ -3038,13 +3033,7 @@ const generatePLPDF = ({ data, businesses, selectedBiz, period, customStart, cus
       <td class="right">${fmt(r.amount)}</td>
       <td class="center">${r.whtRate > 0 ? r.whtRate + '%' : '0.00'}</td>
       <td class="right bold">${fmt(r.net)}</td>
-      <td class="center">${r.hasWht ? '☑' : '-'}</td>
-    </tr>`).join('');
-
-  const emptyRowsHTML = Array.from({length: emptyCount}, (_, i) => `
-    <tr>
-      <td class="center">${filledRows + i + 1 <= totalRows ? filledRows + i + 1 : ''}</td>
-      <td></td><td></td><td></td><td></td><td></td><td></td>
+      <td class="center">${r.hasWht ? '<span style="font-size:16px;color:#16a34a;">✓</span>' : ''}</td>
     </tr>`).join('');
 
   const html = `<!DOCTYPE html><html lang="th"><head>
@@ -3087,7 +3076,6 @@ tr td{height:28px;}
   </tr></thead>
   <tbody>
     ${rowsHTML}
-    ${emptyRowsHTML}
   </tbody>
 </table>
 
