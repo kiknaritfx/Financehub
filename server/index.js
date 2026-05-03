@@ -167,7 +167,13 @@ route('delete', '/api/businesses/:id', async (req, res) => {
 route('get', '/api/transactions', async (req, res) => {
   const { business_id, type, start, end, limit = 100 } = req.query;
   try {
-    let q = 'SELECT * FROM transactions_with_names WHERE 1=1';
+    let q = `SELECT t.*, b.name as business_name,
+      COALESCE(t.created_by_name, '') as created_by_name,
+      COALESCE(t.wht_rate, 0) as wht_rate,
+      COALESCE(t.wht_amount, 0) as wht_amount
+      FROM transactions t
+      LEFT JOIN businesses b ON b.id = t.business_id
+      WHERE 1=1`;
     const p = []; let i = 1;
     if (business_id) { q += ` AND business_id=$${i++}`; p.push(business_id); }
     if (type) { q += ` AND type=$${i++}`; p.push(type); }
@@ -201,11 +207,11 @@ route('post', '/api/transactions', async (req, res) => {
     const txn_id = `TRX-${String(cnt).padStart(4, '0')}`;
     const result = await pool.query(
       `INSERT INTO transactions (txn_id,business_id,type,category,amount,date,
-       payment_cash,payment_transfer,payment_card,petty_cash,note,department,wht_rate,wht_amount)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+       payment_cash,payment_transfer,payment_card,petty_cash,note,department,wht_rate,wht_amount,created_by_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
       [txn_id, business_id, type, category, amount, date || new Date(),
        payment_cash || 0, payment_transfer || 0, payment_card || 0, petty_cash || false, note, department || null,
-       wht_rate || 0, wht_amount || 0]
+       wht_rate || 0, wht_amount || 0, created_by_name || null]
     );
     const txn = result.rows[0];
     // บันทึกรูปภาพ

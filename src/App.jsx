@@ -2009,8 +2009,14 @@ const Transactions = ({ businesses, user }) => {
                           {/* ผู้บันทึก */}
                           <td className="px-4 py-3 text-slate-500 text-xs">{tx.created_by_name || '—'}</td>
                           {/* จำนวนเงิน */}
-                          <td className={`px-4 py-3 text-right font-black text-base whitespace-nowrap ${tx.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {tx.type === 'Income' ? '+' : '-'}฿{fmt(tx.amount)}
+                          <td className={`px-4 py-3 text-right whitespace-nowrap ${tx.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            <div className="font-black text-base">{tx.type === 'Income' ? '+' : '-'}฿{fmt(tx.amount)}</div>
+                            {tx.type === 'Expense' && Number(tx.wht_rate) > 0 && (
+                              <div className="text-xs font-semibold text-slate-400 mt-0.5">
+                                หัก ณ ที่จ่าย {tx.wht_rate}% = <span className="text-rose-400">฿{fmt(tx.wht_amount)}</span>
+                                <br/><span className="text-slate-600 font-bold">สุทธิ ฿{fmt(Number(tx.amount) - Number(tx.wht_amount))}</span>
+                              </div>
+                            )}
                           </td>
                           {/* Actions */}
                           <td className="px-4 py-3">
@@ -2066,7 +2072,7 @@ const Transactions = ({ businesses, user }) => {
                   <span>แสดง {filtered.length} จาก {txns.length} รายการ</span>
                   <div className="flex gap-4 font-semibold">
                     <span className="text-emerald-600">+฿{fmt(filtered.filter(t=>t.type==='Income').reduce((s,t)=>s+Number(t.amount),0))} รายรับ</span>
-                    <span className="text-rose-600">-฿{fmt(filtered.filter(t=>t.type==='Expense').reduce((s,t)=>s+Number(t.amount),0))} รายจ่าย</span>
+                    <span className="text-rose-600">-฿{fmt(filtered.filter(t=>t.type==='Expense').reduce((s,t)=>s+Number(t.amount)-(Number(t.wht_amount)||0),0))} รายจ่าย (สุทธิ)</span>
                   </div>
                 </div>
               </div>
@@ -2107,8 +2113,16 @@ const Transactions = ({ businesses, user }) => {
                           {tx.note && <div className="mt-0.5 text-xs text-slate-400 truncate">{tx.note}</div>}
                         </div>
                         {/* Amount */}
-                        <div className={`text-xl font-black shrink-0 tabular-nums ${isIncome ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {isIncome ? '+' : '-'}฿{fmt(tx.amount)}
+                        <div className="shrink-0 text-right">
+                          <div className={`text-xl font-black tabular-nums ${isIncome ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {isIncome ? '+' : '-'}฿{fmt(tx.amount)}
+                          </div>
+                          {!isIncome && Number(tx.wht_rate) > 0 && (
+                            <div className="text-xs text-slate-400 mt-0.5 text-right">
+                              หัก {tx.wht_rate}% = ฿{fmt(tx.wht_amount)}<br/>
+                              <span className="font-bold text-slate-600">สุทธิ ฿{fmt(Number(tx.amount)-Number(tx.wht_amount))}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -3162,9 +3176,21 @@ const generatePLPDF = ({ data, businesses, selectedBiz, period, customStart, cus
       <td>${r.category}</td>
       <td>${r.note}</td>
       <td class="right">${fmt(r.amount)}</td>
-      <td class="center">${r.whtRate > 0 ? r.whtRate + '%' : '0.00'}</td>
+      <td class="center">${r.whtRate > 0 ? r.whtRate + '%' : '-'}</td>
       <td class="right bold">${fmt(r.net)}</td>
     </tr>`).join('');
+
+  const totalAmount = rows.reduce((s, r) => s + r.amount, 0);
+  const totalWht    = rows.reduce((s, r) => s + r.whtAmt, 0);
+  const totalNet    = rows.reduce((s, r) => s + r.net, 0);
+
+  const summaryHTML = `
+    <tr style="background:#f8fafc;font-weight:700;border-top:2px solid #94a3b8;">
+      <td colspan="3" style="text-align:right;padding-right:12px;">รวมทั้งสิ้น</td>
+      <td class="right">${fmt(totalAmount)}</td>
+      <td class="center">${totalWht > 0 ? fmt(totalWht) : '-'}</td>
+      <td class="right" style="color:#0f172a;">${fmt(totalNet)}</td>
+    </tr>`;
 
   const html = `<!DOCTYPE html><html lang="th"><head>
 <meta charset="UTF-8"/>
@@ -3205,6 +3231,7 @@ tr td{height:28px;}
   </tr></thead>
   <tbody>
     ${rowsHTML}
+    ${summaryHTML}
   </tbody>
 </table>
 
