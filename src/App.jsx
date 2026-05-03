@@ -1142,6 +1142,8 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
   const [images, setImages] = useState([]); // { name, data, type, preview }
   const [loading, setLoading] = useState(false);
   const [department, setDepartment] = useState('');
+  const [whtEnabled, setWhtEnabled] = useState(false);
+  const [whtRate, setWhtRate] = useState(3);
 
   const selectedBiz = businesses.find(b => String(b.id) === String(selectedBizId));
   const expenseCats = (Array.isArray(selectedBiz?.expense_categories) && selectedBiz.expense_categories.length > 0)
@@ -1186,6 +1188,7 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
     if (!amount || Number(amount) <= 0) return alert('กรุณากรอกจำนวนเงิน');
     setLoading(true);
     try {
+      const whtAmount = whtEnabled ? Math.round(Number(amount) * whtRate / 100 * 100) / 100 : 0;
       await transactionAPI.create({
         business_id: selectedBizId, type: 'Expense', category,
         department: department || null,
@@ -1193,11 +1196,13 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
         petty_cash: paymentMethod === 'petty_cash',
         note: note + (receiptType !== 'cash_bill' ? ` [${receiptType === 'tax_short' ? 'ใบกำกับภาษีอย่างย่อ' : 'ใบกำกับภาษีฉบับเต็ม'}]` : ''),
         images: images.map(img => ({ name: img.name, data: img.data, type: img.type })),
-        created_by_name: user?.name || 'Admin'
+        created_by_name: user?.name || 'Admin',
+        wht_rate: whtEnabled ? whtRate : 0,
+        wht_amount: whtAmount,
       });
       onSuccess('บันทึกรายจ่ายสำเร็จ ✅');
       setAmount(''); setNote(''); setSelectedBizId(''); setDepartment('');
-      setImages([]);
+      setImages([]); setWhtEnabled(false); setWhtRate(3);
     } catch (err) {
       alert('เกิดข้อผิดพลาด: ' + err.message);
     } finally {
@@ -1283,6 +1288,61 @@ const ExpenseEntry = ({ businesses, user, onSuccess }) => {
               <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-rose-600 text-xl font-black" placeholder="0.00" />
             </div>
+          </div>
+
+          {/* หัก ณ ที่จ่าย */}
+          <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-bold text-slate-700">หัก ณ ที่จ่าย</p>
+                <p className="text-xs text-slate-400 mt-0.5">Withholding Tax</p>
+              </div>
+              <button type="button" onClick={() => setWhtEnabled(v => !v)}
+                className={`relative w-12 h-6 rounded-full transition-colors ${whtEnabled ? 'bg-rose-500' : 'bg-slate-300'}`}>
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${whtEnabled ? 'left-7' : 'left-1'}`} />
+              </button>
+            </div>
+            {whtEnabled && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-2">อัตราหัก ณ ที่จ่าย</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[1, 1.5, 2, 3, 5, 10, 15].map(r => (
+                      <button key={r} type="button" onClick={() => setWhtRate(r)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${whtRate === r ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-200 hover:border-rose-300'}`}>
+                        {r}%
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                      <input type="number" min="0" max="100" step="0.5" value={whtRate}
+                        onChange={e => setWhtRate(Number(e.target.value))}
+                        className="w-12 text-sm font-bold text-center outline-none text-slate-700" />
+                      <span className="text-sm text-slate-400">%</span>
+                    </div>
+                  </div>
+                </div>
+                {amount && Number(amount) > 0 && (
+                  <div className="bg-white rounded-lg border border-rose-200 p-3 flex justify-between items-center">
+                    <div className="text-xs text-slate-500 space-y-1">
+                      <div className="flex justify-between gap-8">
+                        <span>ยอดเงิน</span>
+                        <span className="font-bold text-slate-700">฿{Number(amount).toLocaleString('th-TH', {minimumFractionDigits:2})}</span>
+                      </div>
+                      <div className="flex justify-between gap-8 text-rose-600">
+                        <span>หัก ณ ที่จ่าย {whtRate}%</span>
+                        <span className="font-bold">- ฿{(Math.round(Number(amount) * whtRate / 100 * 100) / 100).toLocaleString('th-TH', {minimumFractionDigits:2})}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400">ยอดสุทธิที่จ่าย</p>
+                      <p className="text-lg font-black text-emerald-600">
+                        ฿{(Number(amount) - Math.round(Number(amount) * whtRate / 100 * 100) / 100).toLocaleString('th-TH', {minimumFractionDigits:2})}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* แผนก */}
@@ -3001,7 +3061,7 @@ const generatePLPDF = ({ data, businesses, selectedBiz, period, customStart, cus
     (item.sub_items || []).forEach(tx => {
       const amt = Number(tx.amount) || 0;
       const whtRate = Number(tx.wht_rate) || 0;
-      const whtAmt = Math.round(amt * whtRate / 100 * 100) / 100;
+      const whtAmt = Number(tx.wht_amount) || Math.round(amt * whtRate / 100 * 100) / 100;
       const net = amt - whtAmt;
       expenseRows.push({
         num: rowNum++,
@@ -3011,7 +3071,7 @@ const generatePLPDF = ({ data, businesses, selectedBiz, period, customStart, cus
         whtRate: whtRate,
         whtAmt: whtAmt,
         net: net,
-        hasWht: tx.is_tax_receipt || whtRate > 0,
+        hasWht: whtRate > 0,
       });
     });
   });

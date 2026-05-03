@@ -193,17 +193,19 @@ route('get', '/api/transactions', async (req, res) => {
 
 route('post', '/api/transactions', async (req, res) => {
   const { business_id, type, category, amount, date, payment_cash, payment_transfer,
-    payment_card, petty_cash, note, department, images, created_by_name } = req.body;
+    payment_card, petty_cash, note, department, images, created_by_name,
+    wht_rate, wht_amount } = req.body;
   try {
     const maxRes = await pool.query("SELECT MAX(CAST(SUBSTRING(txn_id FROM 5) AS INTEGER)) AS maxn FROM transactions WHERE txn_id ~ '^TRX-[0-9]+$'");
     const cnt = (maxRes.rows[0].maxn || 0) + 1;
     const txn_id = `TRX-${String(cnt).padStart(4, '0')}`;
     const result = await pool.query(
       `INSERT INTO transactions (txn_id,business_id,type,category,amount,date,
-       payment_cash,payment_transfer,payment_card,petty_cash,note,department)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+       payment_cash,payment_transfer,payment_card,petty_cash,note,department,wht_rate,wht_amount)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [txn_id, business_id, type, category, amount, date || new Date(),
-       payment_cash || 0, payment_transfer || 0, payment_card || 0, petty_cash || false, note, department || null]
+       payment_cash || 0, payment_transfer || 0, payment_card || 0, petty_cash || false, note, department || null,
+       wht_rate || 0, wht_amount || 0]
     );
     const txn = result.rows[0];
     // บันทึกรูปภาพ
@@ -457,13 +459,13 @@ route('get', '/api/reports/pl', async (req, res) => {
       pool.query(`SELECT COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Income' GROUP BY department ORDER BY total DESC`, p),
       pool.query(`SELECT COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(SUM(amount),0) as total FROM transactions ${w} AND type='Expense' GROUP BY department ORDER BY total DESC`, p),
       // sub-items: income by category
-      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Income' ORDER BY category,date DESC`, p),
+      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(wht_rate,0) as wht_rate,COALESCE(wht_amount,0) as wht_amount FROM transactions ${w} AND type='Income' ORDER BY category,date DESC`, p),
       // sub-items: expense by category
-      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Expense' ORDER BY category,date DESC`, p),
+      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(wht_rate,0) as wht_rate,COALESCE(wht_amount,0) as wht_amount FROM transactions ${w} AND type='Expense' ORDER BY category,date DESC`, p),
       // sub-items: income by department
-      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Income' ORDER BY department,date DESC`, p),
+      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(wht_rate,0) as wht_rate,COALESCE(wht_amount,0) as wht_amount FROM transactions ${w} AND type='Income' ORDER BY department,date DESC`, p),
       // sub-items: expense by department
-      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department FROM transactions ${w} AND type='Expense' ORDER BY department,date DESC`, p),
+      pool.query(`SELECT id,date::date as date,note,amount,category,COALESCE(department,'(ไม่ระบุแผนก)') as department,COALESCE(wht_rate,0) as wht_rate,COALESCE(wht_amount,0) as wht_amount FROM transactions ${w} AND type='Expense' ORDER BY department,date DESC`, p),
     ]);
     const income = parseFloat(ir.rows[0].total), expense = parseFloat(er.rows[0].total);
 
