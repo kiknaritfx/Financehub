@@ -1752,6 +1752,8 @@ const Transactions = ({ businesses, user }) => {
   const [editTime, setEditTime] = useState('');
   const [editPayment, setEditPayment] = useState('petty_cash');
   const [editDepartment, setEditDepartment] = useState('');
+  const [editWhtEnabled, setEditWhtEnabled] = useState(false);
+  const [editWhtRate, setEditWhtRate] = useState(3);
   const [saving, setSaving] = useState(false);
   // Image viewer
   const [imageModal, setImageModal] = useState(null); // transaction object
@@ -1817,24 +1819,32 @@ const Transactions = ({ businesses, user }) => {
     setEditTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
     setEditPayment(tx.petty_cash ? 'petty_cash' : 'transfer');
     setEditDepartment(tx.department || '');
+    const rate = Number(tx.wht_rate) || 0;
+    setEditWhtEnabled(rate > 0);
+    setEditWhtRate(rate > 0 ? rate : 3);
   };
 
   const handleEdit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
+      const whtAmount = editWhtEnabled ? Math.round(Number(editAmount) * editWhtRate / 100 * 100) / 100 : 0;
       await transactionAPI.update(editModal.id, {
         category: editCategory, amount: Number(editAmount), note: editNote,
         type: editType, date: `${editDate}T${editTime}`,
         petty_cash: editPayment === 'petty_cash',
         department: editDepartment || null,
-        user_name: user?.name || 'Admin'
+        user_name: user?.name || 'Admin',
+        wht_rate: editWhtEnabled ? editWhtRate : 0,
+        wht_amount: whtAmount,
       });
       setTxns(prev => prev.map(t => t.id === editModal.id
         ? { ...t, category: editCategory, amount: Number(editAmount), note: editNote,
             type: editType, date: `${editDate}T${editTime}`,
             petty_cash: editPayment === 'petty_cash',
-            department: editDepartment || null, is_edited: true } : t));
+            department: editDepartment || null, is_edited: true,
+            wht_rate: editWhtEnabled ? editWhtRate : 0,
+            wht_amount: whtAmount } : t));
       setEditModal(null);
     } catch (err) { alert('แก้ไขไม่สำเร็จ: ' + err.message); }
     finally { setSaving(false); }
@@ -2400,6 +2410,62 @@ const Transactions = ({ businesses, user }) => {
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base font-bold" />
             </div>
           </div>
+          {/* หัก ณ ที่จ่าย (เฉพาะ Expense) */}
+          {editType === 'Expense' && (
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-700">หัก ณ ที่จ่าย</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Withholding Tax</p>
+                </div>
+                <button type="button" onClick={() => setEditWhtEnabled(v => !v)}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${editWhtEnabled ? 'bg-rose-500' : 'bg-slate-300'}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${editWhtEnabled ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+              {editWhtEnabled && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-2">อัตราหัก ณ ที่จ่าย</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[1, 1.5, 2, 3, 5, 10, 15].map(r => (
+                        <button key={r} type="button" onClick={() => setEditWhtRate(r)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${editWhtRate === r ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-200 hover:border-rose-300'}`}>
+                          {r}%
+                        </button>
+                      ))}
+                      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                        <input type="number" min="0" max="100" step="0.5" value={editWhtRate}
+                          onChange={e => setEditWhtRate(Number(e.target.value))}
+                          className="w-12 text-sm font-bold text-center outline-none text-slate-700" />
+                        <span className="text-sm text-slate-400">%</span>
+                      </div>
+                    </div>
+                  </div>
+                  {editAmount && Number(editAmount) > 0 && (
+                    <div className="bg-white rounded-lg border border-rose-200 p-3 flex justify-between items-center">
+                      <div className="text-xs text-slate-500 space-y-1">
+                        <div className="flex justify-between gap-8">
+                          <span>ยอดเงิน</span>
+                          <span className="font-bold text-slate-700">฿{Number(editAmount).toLocaleString('th-TH', {minimumFractionDigits:2})}</span>
+                        </div>
+                        <div className="flex justify-between gap-8 text-rose-600">
+                          <span>หัก ณ ที่จ่าย {editWhtRate}%</span>
+                          <span className="font-bold">- ฿{(Math.round(Number(editAmount) * editWhtRate / 100 * 100) / 100).toLocaleString('th-TH', {minimumFractionDigits:2})}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-400">ยอดสุทธิที่จ่าย</p>
+                        <p className="text-lg font-black text-emerald-600">
+                          ฿{(Number(editAmount) - Math.round(Number(editAmount) * editWhtRate / 100 * 100) / 100).toLocaleString('th-TH', {minimumFractionDigits:2})}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {/* ชื่อค่าใช้จ่าย/หมายเหตุ */}
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1.5">ชื่อค่าใช้จ่าย / หมายเหตุ</label>

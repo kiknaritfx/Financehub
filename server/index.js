@@ -235,7 +235,7 @@ route('post', '/api/transactions', async (req, res) => {
 });
 
 route('put', '/api/transactions/:id', async (req, res) => {
-  const { category, amount, note, type, date, petty_cash, department, user_name } = req.body;
+  const { category, amount, note, type, date, petty_cash, department, user_name, wht_rate, wht_amount } = req.body;
   try {
     const old = (await pool.query('SELECT * FROM transactions WHERE id=$1', [req.params.id])).rows[0];
     if (!old) return res.status(404).json({ error: 'ไม่พบรายการ' });
@@ -248,13 +248,16 @@ route('put', '/api/transactions/:id', async (req, res) => {
       `UPDATE transactions SET
         category=COALESCE($1,category), amount=$2, note=COALESCE($3,note),
         type=$4, date=COALESCE($5,date), petty_cash=$6,
-        department=$7, is_edited=TRUE
+        department=$7, is_edited=TRUE,
+        wht_rate=$9, wht_amount=$10
        WHERE id=$8 RETURNING *`,
       [category || old.category, newAmount,
        note !== undefined ? note : old.note,
        newType, date || null, newPettyCash,
        department !== undefined ? department : old.department,
-       req.params.id]
+       req.params.id,
+       wht_rate != null ? wht_rate : (old.wht_rate || 0),
+       wht_amount != null ? wht_amount : (old.wht_amount || 0)]
     );
 
     // Audit log
@@ -273,6 +276,8 @@ route('put', '/api/transactions/:id', async (req, res) => {
       changes.push(['ช่องทาง', old.petty_cash ? 'เงินสดย่อย' : 'โอนเงิน', petty_cash ? 'เงินสดย่อย' : 'โอนเงิน']);
     if (department !== undefined && department !== old.department)
       changes.push(['แผนก', old.department || '-', department || '-']);
+    if (wht_rate != null && Number(wht_rate) !== Number(old.wht_rate || 0))
+      changes.push(['หัก ณ ที่จ่าย', `${old.wht_rate || 0}%`, `${wht_rate}%`]);
     for (const [field, ov, nv] of changes) {
       await pool.query(
         `INSERT INTO audit_logs (transaction_id,user_name,action,field_changed,old_value,new_value) VALUES ($1,$2,'EDIT',$3,$4,$5)`,
