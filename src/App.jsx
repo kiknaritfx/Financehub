@@ -2002,6 +2002,9 @@ const Transactions = ({ businesses, user }) => {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2 flex-wrap">
                               <Badge type={tx.type === 'Income' ? 'income' : 'expense'}>{tx.type === 'Income' ? 'รายรับ' : 'รายจ่าย'}</Badge>
+                              {tx.type === 'Expense' && tx.petty_cash && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">💵 เงินสดย่อย</span>
+                              )}
                               <span className="text-slate-700">{tx.category}</span>
                             </div>
                             {tx.note && <div className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">{tx.note}</div>}
@@ -2092,6 +2095,9 @@ const Transactions = ({ businesses, user }) => {
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${isIncome ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                               {isIncome ? '▲ รายรับ' : '▼ รายจ่าย'}
                             </span>
+                            {!isIncome && tx.petty_cash && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">💵 เงินสดย่อย</span>
+                            )}
                             {tx.is_edited && <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-full font-bold">✏️</span>}
                             {tx.image_count > 0 && (
                               <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full font-medium flex items-center gap-0.5">
