@@ -2961,6 +2961,154 @@ const BusinessManagement = ({ businesses, setBusinesses, onSuccess }) => {
 
 
 // ─── REPORTS ───
+// ─── GENERATE P&L PDF ────────────────────────────────────────────────
+const generatePLPDF = ({ data, businesses, selectedBiz, period, customStart, customEnd }) => {
+  const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
+  const activeBiz = businesses.filter(b => b.status === 'Active');
+  const bizObj = selectedBiz !== 'all' ? activeBiz.find(b => String(b.id) === String(selectedBiz)) : null;
+  const bizName = bizObj ? (bizObj.tax_name || bizObj.name) : 'รวมทุกธุรกิจ';
+
+  // คำนวณช่วงวันที่
+  const now = new Date(new Date().getTime() + 7*60*60*1000);
+  const today = now.toISOString().split('T')[0];
+  let start = today, end = today;
+  if (period === 'วันนี้') { start = today; end = today; }
+  else if (period === 'สัปดาห์นี้') {
+    const day = now.getDay();
+    const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    start = mon.toISOString().split('T')[0]; end = today;
+  } else if (period === 'เดือนที่แล้ว') {
+    const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const last = new Date(now.getFullYear(), now.getMonth(), 0);
+    start = first.toISOString().split('T')[0]; end = last.toISOString().split('T')[0];
+  } else if (period === 'กำหนดเอง') { start = customStart || today; end = customEnd || today; }
+  else { start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]; end = today; }
+
+  const fmtDate = (d) => {
+    const [y, m, da] = d.split('-');
+    return `${da}/${m}/${Number(y) + 543}`;
+  };
+
+  // รวมรายการค่าใช้จ่ายทั้งหมด (expense_items sub_items)
+  const expenseRows = [];
+  let rowNum = 1;
+  (data.expense_items || []).forEach(item => {
+    (item.sub_items || []).forEach(tx => {
+      const amt = Number(tx.amount) || 0;
+      const whtRate = Number(tx.wht_rate) || 0;
+      const whtAmt = Math.round(amt * whtRate / 100 * 100) / 100;
+      const net = amt - whtAmt;
+      expenseRows.push({
+        num: rowNum++,
+        category: item.category || '(ไม่ระบุ)',
+        note: tx.note || '(ไม่ระบุ)',
+        amount: amt,
+        whtRate: whtRate,
+        whtAmt: whtAmt,
+        net: net,
+        hasWht: tx.is_tax_receipt || whtRate > 0,
+      });
+    });
+  });
+
+  // ถ้าไม่มี sub_items ให้แสดงแบบ category-level
+  const useCategory = expenseRows.length === 0;
+  const categoryRows = (data.expense_items || []).map((item, i) => ({
+    num: i + 1,
+    category: item.category || '(ไม่ระบุ)',
+    note: '',
+    amount: Number(item.total) || 0,
+    whtRate: 0,
+    whtAmt: 0,
+    net: Number(item.total) || 0,
+    hasWht: false,
+  }));
+  const rows = useCategory ? categoryRows : expenseRows;
+
+  // สร้าง empty rows ให้ครบ 20 แถว
+  const totalRows = 20;
+  const filledRows = rows.length;
+  const emptyCount = Math.max(0, totalRows - filledRows);
+
+  const rowsHTML = rows.map(r => `
+    <tr>
+      <td class="center">${r.num}</td>
+      <td>${r.category}</td>
+      <td>${r.note}</td>
+      <td class="right">${fmt(r.amount)}</td>
+      <td class="center">${r.whtRate > 0 ? r.whtRate + '%' : '0.00'}</td>
+      <td class="right bold">${fmt(r.net)}</td>
+      <td class="center">${r.hasWht ? '☑' : '-'}</td>
+    </tr>`).join('');
+
+  const emptyRowsHTML = Array.from({length: emptyCount}, (_, i) => `
+    <tr>
+      <td class="center">${filledRows + i + 1 <= totalRows ? filledRows + i + 1 : ''}</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html><html lang="th"><head>
+<meta charset="UTF-8"/>
+<title>สรุปค่าใช้จ่าย</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Sarabun',sans-serif;font-size:13px;color:#1e293b;background:#fff;padding:14mm 16mm;}
+h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px;}
+.sub-title{font-size:14px;font-weight:600;text-align:center;margin-bottom:2px;}
+.date-range{font-size:13px;text-align:center;margin-bottom:18px;}
+table{width:100%;border-collapse:collapse;margin-bottom:24px;}
+th,td{border:1px solid #cbd5e1;padding:7px 10px;font-size:12px;}
+th{background:#f1f5f9;font-weight:700;text-align:center;}
+td.center{text-align:center;}
+td.right{text-align:right;}
+td.bold{font-weight:700;}
+tr td{height:28px;}
+.sig-row{display:flex;justify-content:space-between;margin-top:32px;padding-top:16px;}
+.sig-box{text-align:center;width:45%;}
+.sig-line{border-bottom:1px solid #94a3b8;margin:40px 16px 6px;}
+.sig-label{font-size:12px;color:#475569;font-weight:700;}
+.sig-subname{font-size:12px;color:#94a3b8;min-width:160px;display:inline-block;border-bottom:1px solid #cbd5e1;margin-bottom:4px;}
+@media print{body{padding:0;}@page{margin:14mm;size:A4 portrait;}}
+</style></head><body>
+<h1>สรุปค่าใช้จ่าย</h1>
+<div class="sub-title">บริษัท ${bizName}</div>
+<div class="date-range">วันที่ : ${fmtDate(start)} - ${fmtDate(end)}</div>
+
+<table>
+  <thead><tr>
+    <th style="width:36px">#</th>
+    <th style="width:120px">หมวดหมู่</th>
+    <th>รายการค่าใช้จ่าย</th>
+    <th style="width:110px">ยอดเงิน</th>
+    <th style="width:80px">หัก ณ ที่จ่าย</th>
+    <th style="width:110px">ยอดรวม</th>
+    <th style="width:90px">สถานะใบกำกับภาษี</th>
+  </tr></thead>
+  <tbody>
+    ${rowsHTML}
+    ${emptyRowsHTML}
+  </tbody>
+</table>
+
+<div class="sig-row">
+  <div class="sig-box">
+    <div class="sig-line"></div>
+    <div class="sig-subname">&nbsp;</div>
+    <div class="sig-label">ตรวจสอบโดย</div>
+  </div>
+  <div class="sig-box">
+    <div class="sig-line"></div>
+    <div class="sig-subname">&nbsp;</div>
+    <div class="sig-label">อนุมัติโดย</div>
+  </div>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  if (win) { win.document.write(html); win.document.close(); setTimeout(() => { win.focus(); win.print(); }, 600); }
+};
+
 const Reports = ({ businesses }) => {
   const [selectedBiz, setSelectedBiz] = useState('all');
   const [period, setPeriod] = useState('เดือนนี้');
@@ -3087,7 +3235,10 @@ const Reports = ({ businesses }) => {
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800">รายงานงบกำไรขาดทุน (P&L)</h2>
           <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Profit & Loss Statement</p>
         </div>
-        <button onClick={() => window.print()} className="shrink-0 px-3 py-2 sm:px-4 sm:py-2.5 bg-blue-600 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5">
+        <button
+          onClick={() => data && generatePLPDF({ data, businesses, selectedBiz, period, customStart, customEnd })}
+          disabled={!data}
+          className="shrink-0 px-3 py-2 sm:px-4 sm:py-2.5 bg-blue-600 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 disabled:opacity-50">
           <Printer size={14} /> Print
         </button>
       </div>
