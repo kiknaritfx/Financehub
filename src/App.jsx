@@ -3033,7 +3033,6 @@ const generatePLPDF = ({ data, businesses, selectedBiz, period, customStart, cus
       <td class="right">${fmt(r.amount)}</td>
       <td class="center">${r.whtRate > 0 ? r.whtRate + '%' : '0.00'}</td>
       <td class="right bold">${fmt(r.net)}</td>
-      <td class="center">${r.hasWht ? '<span style="font-size:16px;color:#16a34a;">✓</span>' : ''}</td>
     </tr>`).join('');
 
   const html = `<!DOCTYPE html><html lang="th"><head>
@@ -3072,7 +3071,6 @@ tr td{height:28px;}
     <th style="width:110px">ยอดเงิน</th>
     <th style="width:80px">หัก ณ ที่จ่าย</th>
     <th style="width:110px">ยอดรวม</th>
-    <th style="width:90px">สถานะใบกำกับภาษี</th>
   </tr></thead>
   <tbody>
     ${rowsHTML}
