@@ -2968,21 +2968,26 @@ const generatePLPDF = ({ data, businesses, selectedBiz, period, customStart, cus
   const bizObj = selectedBiz !== 'all' ? activeBiz.find(b => String(b.id) === String(selectedBiz)) : null;
   const bizName = bizObj ? (bizObj.tax_name || bizObj.name) : 'รวมทุกธุรกิจ';
 
-  // คำนวณช่วงวันที่
+  // คำนวณช่วงวันที่ (ใช้ UTC+7 ตรงๆ ไม่ผ่าน toISOString เพื่อป้องกัน timezone shift)
   const now = new Date(new Date().getTime() + 7*60*60*1000);
-  const today = now.toISOString().split('T')[0];
+  const pad = (n) => String(n).padStart(2, '0');
+  const localDate = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;
+  const today = localDate(now);
   let start = today, end = today;
   if (period === 'วันนี้') { start = today; end = today; }
   else if (period === 'สัปดาห์นี้') {
-    const day = now.getDay();
-    const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-    start = mon.toISOString().split('T')[0]; end = today;
+    const day = now.getUTCDay();
+    const mon = new Date(now.getTime() - (day === 0 ? 6 : day - 1) * 86400000);
+    start = localDate(mon); end = today;
   } else if (period === 'เดือนที่แล้ว') {
-    const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const last = new Date(now.getFullYear(), now.getMonth(), 0);
-    start = first.toISOString().split('T')[0]; end = last.toISOString().split('T')[0];
+    const y = now.getUTCFullYear(), m = now.getUTCMonth();
+    start = localDate(new Date(Date.UTC(y, m - 1, 1)));
+    end = localDate(new Date(Date.UTC(y, m, 0)));
   } else if (period === 'กำหนดเอง') { start = customStart || today; end = customEnd || today; }
-  else { start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]; end = today; }
+  else {
+    const y = now.getUTCFullYear(), m = now.getUTCMonth();
+    start = localDate(new Date(Date.UTC(y, m, 1))); end = today;
+  }
 
   const fmtDate = (d) => {
     const [y, m, da] = d.split('-');
