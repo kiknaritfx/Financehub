@@ -1813,10 +1813,17 @@ const Transactions = ({ businesses, user }) => {
     setEditAmount(String(tx.amount || ''));
     setEditNote(tx.note || '');
     setEditType(tx.type || 'Expense');
-    const d = tx.date ? new Date(tx.date) : new Date();
+    // แยก date/time จาก string โดยตรง ป้องกัน timezone shift จาก new Date()
     const pad = n => String(n).padStart(2,'0');
-    setEditDate(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`);
-    setEditTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    if (tx.date) {
+      const parts = tx.date.slice(0, 16).split('T');
+      setEditDate(parts[0] || '');
+      setEditTime(parts[1] || '');
+    } else {
+      const now = new Date();
+      setEditDate(`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`);
+      setEditTime(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
+    }
     setEditPayment(tx.petty_cash ? 'petty_cash' : 'transfer');
     setEditDepartment(tx.department || '');
     const rate = Number(tx.wht_rate) || 0;
