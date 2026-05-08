@@ -6062,8 +6062,11 @@ export default function App() {
     'Users':         'users',
   };
   const userFeatures = user?.features || [];
+  // เมนูที่ทุกคนเข้าถึงได้เสมอ (ไม่ผ่าน permission check)
+  const PUBLIC_MENUS = ['payment_vouchers', 'receipt_vouchers'];
   const canAccess = (menuId) => {
     if (isOwner) return true;
+    if (PUBLIC_MENUS.includes(menuId)) return true;
     const entry = Object.entries(FEATURE_MENU_MAP).find(([,v]) => v === menuId);
     if (!entry) return true;
     return userFeatures.includes(entry[0]);
