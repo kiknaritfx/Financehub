@@ -3970,8 +3970,8 @@ const generatePDF = (doc, biz, settings) => {
 <body>
 <div class="header">
   <div>
-    <div class="doc-title">${doc.doc_type === 'RC' ? 'ใบเสร็จรับเงิน/ใบกำกับภาษี' : typeInfo.label}</div>
-    <div class="doc-sub">${doc.doc_type === 'RC' ? 'Receipt / Tax Invoice (ต้นฉบับ / Original)' : typeInfo.labelEn + ' (ต้นฉบับ / original)'}</div>
+    <div class="doc-title">${doc.doc_type === 'RC' ? 'ใบเสร็จรับเงิน' : typeInfo.label}</div>
+    <div class="doc-sub">${doc.doc_type === 'RC' ? 'Receipt (ต้นฉบับ / Original)' : typeInfo.labelEn + ' (ต้นฉบับ / original)'}</div>
   </div>
   <div class="logo-box">${biz?.icon && biz.icon.startsWith('data:') ? `<img src="${biz.icon}" alt="logo"/>` : (biz?.icon || '🏪')}</div>
 </div>
