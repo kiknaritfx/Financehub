@@ -4090,8 +4090,8 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc, prefillDoc 
   });
   const [discount, setDiscount] = useState(editDoc?.discount_input ?? editDoc?.discount ?? 0);
   const [discountType, setDiscountType] = useState(editDoc?.discount_type || 'amount'); // 'amount' | 'percent'
-  const [useVat, setUseVat] = useState(false);
-  const [whtRate, setWhtRate] = useState(0); // 0, 1, 1.5, 3, 5, 10, 15
+  const [useVat, setUseVat] = useState(() => Number(editDoc?.vat || 0) > 0);
+  const [whtRate, setWhtRate] = useState(editDoc?.wht_rate ?? 0); // 0, 1, 1.5, 3, 5, 10, 15
   const [remarks, setRemarks] = useState(editDoc?.remarks || '');
   const [saving, setSaving] = useState(false);
   const [loadingNum, setLoadingNum] = useState(!editDoc);
@@ -4128,7 +4128,8 @@ const DocumentForm = ({ businesses, user, onClose, onSaved, editDoc, prefillDoc 
       customer_address: customerAddr, customer_tax_id: customerTax,
       customer_email: customerEmail, customer_phone: customerPhone,
       issue_date: issueDate, valid_date: validDate || null, ref_doc: refDoc || null,
-      items, subtotal, discount: discountAmt, discount_type: discountType, discount_input: Number(discount) || 0, total,
+      items, subtotal, discount: discountAmt, discount_type: discountType, discount_input: Number(discount) || 0,
+      vat: vatAmt, wht_rate: Number(whtRate) || 0, wht_amount: whtAmt, total,
       remarks, created_by: user?.id || null,
     };
     try {

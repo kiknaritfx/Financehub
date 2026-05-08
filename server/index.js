@@ -44,6 +44,19 @@ async function runMigrations() {
 }
 runMigrations();
 
+// Patch migrations — เพิ่ม column ที่อาจยังไม่มีใน documents table
+(async () => {
+  const patches = [
+    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS vat NUMERIC(12,2) DEFAULT 0",
+    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS wht_rate NUMERIC(5,2) DEFAULT 0",
+    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS wht_amount NUMERIC(12,2) DEFAULT 0",
+  ];
+  for (const sql of patches) {
+    try { await pool.query(sql); } catch (e) { console.error('patch:', e.message); }
+  }
+  console.log('✅ Documents column patch done');
+})();
+
 // Strip null bytes (\u0000) that PostgreSQL UTF8 rejects
 const cleanStr = (v) => (typeof v === 'string' ? v.replace(/\u0000/g, '') : v);
 const cleanObj = (obj) => {
@@ -607,7 +620,7 @@ route('get', '/api/documents/:id', async (req, res) => {
 route('post', '/api/documents', async (req, res) => {
   const { business_id, doc_type, customer_name, customer_address, customer_tax_id,
     customer_email, customer_phone, issue_date, valid_date, ref_doc,
-    items, subtotal, discount, total, remarks, created_by } = req.body;
+    items, subtotal, discount, vat, wht_rate, wht_amount, total, remarks, created_by } = req.body;
   try {
     // get & increment running number
     const settingRes = await pool.query(
@@ -624,14 +637,15 @@ route('post', '/api/documents', async (req, res) => {
     const r = await pool.query(`
       INSERT INTO documents (doc_number,doc_type,business_id,customer_name,customer_address,
         customer_tax_id,customer_email,customer_phone,issue_date,valid_date,ref_doc,
-        items,subtotal,discount,total,remarks,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::JSONB,$13,$14,$15,$16,$17)
+        items,subtotal,discount,vat,wht_rate,wht_amount,total,remarks,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::JSONB,$13,$14,$15,$16,$17,$18,$19,$20)
       RETURNING *`,
       [docNumber, doc_type, business_id, customer_name, customer_address,
        customer_tax_id, customer_email, customer_phone,
        issue_date, valid_date || null, ref_doc || null,
-       JSON.stringify(items || []), subtotal || 0, discount || 0, total || 0,
-       remarks || null, created_by || null]
+       JSON.stringify(items || []), subtotal || 0, discount || 0,
+       vat || 0, wht_rate || 0, wht_amount || 0,
+       total || 0, remarks || null, created_by || null]
     );
     // increment running number
     await pool.query(
@@ -650,17 +664,19 @@ route('post', '/api/documents', async (req, res) => {
 // PUT update document
 route('put', '/api/documents/:id', async (req, res) => {
   const { customer_name, customer_address, customer_tax_id, customer_email, customer_phone,
-    issue_date, valid_date, ref_doc, items, subtotal, discount, total, remarks, status } = req.body;
+    issue_date, valid_date, ref_doc, items, subtotal, discount, vat, wht_rate, wht_amount, total, remarks, status } = req.body;
   try {
     const r = await pool.query(`
       UPDATE documents SET customer_name=$1,customer_address=$2,customer_tax_id=$3,
         customer_email=$4,customer_phone=$5,issue_date=$6,valid_date=$7,ref_doc=$8,
-        items=$9::JSONB,subtotal=$10,discount=$11,total=$12,remarks=$13,status=$14,updated_at=NOW()
-      WHERE id=$15 RETURNING *`,
+        items=$9::JSONB,subtotal=$10,discount=$11,vat=$12,wht_rate=$13,wht_amount=$14,
+        total=$15,remarks=$16,status=$17,updated_at=NOW()
+      WHERE id=$18 RETURNING *`,
       [customer_name, customer_address, customer_tax_id, customer_email, customer_phone,
        issue_date, valid_date || null, ref_doc || null,
-       JSON.stringify(items || []), subtotal || 0, discount || 0, total || 0,
-       remarks || null, status || 'draft', req.params.id]
+       JSON.stringify(items || []), subtotal || 0, discount || 0,
+       vat || 0, wht_rate || 0, wht_amount || 0,
+       total || 0, remarks || null, status || 'draft', req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'ไม่พบเอกสาร' });
     res.json(r.rows[0]);
