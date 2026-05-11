@@ -3992,6 +3992,7 @@ const generatePDF = (doc, biz, settings) => {
     ${doc.valid_date ? `<div class="info-row"><span class="info-label">ใช้ได้ถึง</span><span class="info-val">${formatDocDate(doc.valid_date)}</span></div>` : ''}
     ${doc.ref_doc ? `<div class="info-row"><span class="info-label">อ้างอิง</span><span class="info-val">${doc.ref_doc}</span></div>` : ''}
     <div class="info-row"><span class="info-label">ผู้ออก</span><span class="info-val">${issuerName}</span></div>
+    ${issuerAddress ? `<div class="info-row"><span class="info-label">ที่อยู่ผู้ออก</span><span class="info-val">${issuerAddress}</span></div>` : ''}
     <div class="info-row"><span class="info-label">เลขภาษีผู้ออก</span><span class="info-val">${issuerTaxId}</span></div>
   </div>
 </div>
