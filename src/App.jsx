@@ -4652,6 +4652,7 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
   const [pvImages, setPvImages] = useState({});
   const [loadingImages, setLoadingImages] = useState({});
   const [lightbox, setLightbox] = useState(null);
+  const [filterBiz, setFilterBiz] = useState('all');
   const openLightbox = (images, index = 0) => setLightbox({ images, index });
   const closeLightbox = () => setLightbox(null);
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
@@ -4664,11 +4665,18 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
 
   useEffect(() => { loadPvs(); }, [loadPvs]);
 
-  const filtered = pvs.filter(p =>
-    !search || (p.pv_no || '').toLowerCase().includes(search.toLowerCase())
+  // รายชื่อร้านค้าที่มีใบสำคัญจ่าย (unique)
+  const bizOptions = Array.from(
+    new Map(pvs.map(p => [String(p.business_id), p.business_name || businesses.find(b => String(b.id) === String(p.business_id))?.name || `ร้านค้า ${p.business_id}`])).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1], 'th'));
+
+  const filtered = pvs.filter(p => {
+    const matchBiz = filterBiz === 'all' || String(p.business_id) === filterBiz;
+    const matchSearch = !search || (p.pv_no || '').toLowerCase().includes(search.toLowerCase())
       || (p.pay_to || '').includes(search)
-      || (p.description || '').includes(search)
-  );
+      || (p.description || '').includes(search);
+    return matchBiz && matchSearch;
+  });
 
   // โหลดรูปภาพสำหรับ tx_id ที่ยังไม่เคยโหลด
   const loadImages = async (txId) => {
@@ -4717,14 +4725,34 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-3">
+      {/* Search + Filter */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-3 space-y-2.5">
         <div className="relative">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="ค้นหาเลขที่, ชื่อผู้รับ, รายการ..."
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-400 outline-none text-sm" />
         </div>
+        {bizOptions.length > 1 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-slate-400 font-semibold shrink-0">ร้านค้า:</span>
+            <button
+              onClick={() => setFilterBiz('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${filterBiz === 'all' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
+              ทั้งหมด ({pvs.length})
+            </button>
+            {bizOptions.map(([bizId, bizName]) => {
+              const count = pvs.filter(p => String(p.business_id) === bizId).length;
+              return (
+                <button key={bizId}
+                  onClick={() => setFilterBiz(bizId)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${filterBiz === bizId ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
+                  {bizName} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* List */}
