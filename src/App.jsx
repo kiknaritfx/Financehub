@@ -241,7 +241,7 @@ const generatePVPDF = (pv, biz, settings) => {
   // ── WHT calculation ──
   const pvWhtRate = pvRef.wht_rate;
   const pvWhtAmt = Math.round(Number(pvRef.amount) * pvWhtRate / 100 * 100) / 100;
-  const pvNet = pvRef.net_amount || (Number(pvRef.amount) - pvWhtAmt);
+  const pvNet = Number(pvRef.amount) - pvWhtAmt;
 
   // ── 8 แถวว่าง ──
   const emptyRows = Array(8).fill('')
