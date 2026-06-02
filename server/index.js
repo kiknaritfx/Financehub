@@ -724,19 +724,29 @@ route('post', '/api/payment-vouchers', async (req, res) => {
             txn_id, business_name } = req.body;
     let { pv_no } = req.body;
 
-    // Auto-generate pv_no — increment running atomically using UPDATE...RETURNING
+    // Auto-generate pv_no — แยก running number ตาม business_id
     if (!pv_no) {
-      // ถ้ายังไม่มี row ให้สร้างก่อน
-      // Ensure row exists
-      const pvEx = await pool.query("SELECT id FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1");
+      const bizId = business_id || null;
+      // Ensure row exists สำหรับ business นี้
+      const pvEx = await pool.query(
+        "SELECT id FROM voucher_settings WHERE voucher_type='pv' AND (business_id=$1 OR (business_id IS NULL AND $1 IS NULL)) LIMIT 1",
+        [bizId]
+      );
       if (pvEx.rows.length === 0) {
-        await pool.query("INSERT INTO voucher_settings (voucher_type, business_id, prefix, running) VALUES ('pv', NULL, 'PV', 0)");
+        // ดึง prefix จาก global row มาใช้เป็น default
+        const globalRow = await pool.query("SELECT prefix FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1");
+        const defaultPrefix = globalRow.rows[0]?.prefix || 'PV';
+        await pool.query(
+          "INSERT INTO voucher_settings (voucher_type, business_id, prefix, running) VALUES ('pv', $1, $2, 0)",
+          [bizId, defaultPrefix]
+        );
       }
-      // Atomic increment — ป้องกัน race condition
+      // Atomic increment per business
       const upd = await pool.query(
         `UPDATE voucher_settings SET running = running + 1
-         WHERE voucher_type='pv' AND business_id IS NULL
-         RETURNING running, prefix`
+         WHERE voucher_type='pv' AND (business_id=$1 OR (business_id IS NULL AND $1 IS NULL))
+         RETURNING running, prefix`,
+        [bizId]
       );
       const s = upd.rows[0] || { running: 1, prefix: 'PV' };
       const now = new Date();
@@ -801,32 +811,48 @@ route('delete', '/api/payment-vouchers/:id', async (req, res) => {
 
 route('get', '/api/voucher-settings/pv', async (req, res) => {
   try {
-    const r = await pool.query(
-      "SELECT * FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1"
-    );
-    res.json(r.rows[0] || {});
+    const { business_id } = req.query;
+    let row = null;
+    if (business_id) {
+      // ลอง biz-specific ก่อน
+      const r = await pool.query(
+        "SELECT * FROM voucher_settings WHERE voucher_type='pv' AND business_id=$1 LIMIT 1",
+        [business_id]
+      );
+      row = r.rows[0] || null;
+    }
+    if (!row) {
+      // fallback global
+      const r = await pool.query(
+        "SELECT * FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1"
+      );
+      row = r.rows[0] || {};
+    }
+    res.json(row);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 route('post', '/api/voucher-settings/pv', async (req, res) => {
   try {
-    const { prefix, running, approver_name, payer_name, approver_sig, payer_sig } = req.body;
+    const { prefix, running, approver_name, payer_name, approver_sig, payer_sig, business_id } = req.body;
+    const bizId = business_id || null;
     const existing = await pool.query(
-      "SELECT id FROM voucher_settings WHERE voucher_type='pv' AND business_id IS NULL LIMIT 1"
+      "SELECT id FROM voucher_settings WHERE voucher_type='pv' AND (business_id=$1 OR (business_id IS NULL AND $1 IS NULL)) LIMIT 1",
+      [bizId]
     );
     let r;
     if (existing.rows.length > 0) {
       r = await pool.query(
         `UPDATE voucher_settings SET prefix=$1, running=COALESCE($2, running),
          approver_name=$3, payer_name=$4, approver_sig=COALESCE($5, approver_sig), payer_sig=COALESCE($6, payer_sig)
-         WHERE voucher_type='pv' AND business_id IS NULL RETURNING *`,
-        [prefix, running ?? null, approver_name, payer_name, approver_sig || null, payer_sig || null]
+         WHERE voucher_type='pv' AND (business_id=$7 OR (business_id IS NULL AND $7 IS NULL)) RETURNING *`,
+        [prefix, running ?? null, approver_name, payer_name, approver_sig || null, payer_sig || null, bizId]
       );
     } else {
       r = await pool.query(
         `INSERT INTO voucher_settings (voucher_type, business_id, prefix, running, approver_name, payer_name, approver_sig, payer_sig)
-         VALUES ('pv', NULL, $1, $2, $3, $4, $5, $6) RETURNING *`,
-        [prefix || 'PV', running ?? 0, approver_name, payer_name, approver_sig || null, payer_sig || null]
+         VALUES ('pv', $7, $1, $2, $3, $4, $5, $6) RETURNING *`,
+        [prefix || 'PV', running ?? 0, approver_name, payer_name, approver_sig || null, payer_sig || null, bizId]
       );
     }
     res.json(r.rows[0]);

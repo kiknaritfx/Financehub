@@ -1488,7 +1488,7 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
   const [pvNoPreview, setPvNoPreview] = useState('กำลังโหลด...');
 
   useEffect(() => {
-    pvAPI.getSettings().then(s => {
+    pvAPI.getSettings(tx.business_id).then(s => {
       const prefix = (s && s.prefix) || 'PV';
       const now = new Date();
       const yy = String(now.getFullYear() + 543).slice(-2);
@@ -1496,7 +1496,7 @@ const PaymentVoucherForm = ({ tx, businesses, user, onClose, onSaved }) => {
       const running = ((s && s.running) || 0) + 1;
       setPvNoPreview(`${prefix}-${yy}${mm}-${String(running).padStart(3, '0')} (ระบบจะออกให้อัตโนมัติ)`);
     }).catch(() => setPvNoPreview('ระบบจะออกให้อัตโนมัติ'));
-  }, []);
+  }, [tx.business_id]);
   const [payTo, setPayTo] = useState('');
   const [docRef, setDocRef] = useState('');
   const [description, setDescription] = useState(tx.category || '');
@@ -4656,7 +4656,11 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
   const [pvImages, setPvImages] = useState({});
   const [loadingImages, setLoadingImages] = useState({});
   const [lightbox, setLightbox] = useState(null);
-  const [filterBiz, setFilterBiz] = useState('all');
+  // default = business แรกของ user (ถ้ามีหลาย biz)
+  const defaultBizId = user?.business_ids?.length > 0
+    ? String(user.business_ids[0])
+    : businesses[0]?.id ? String(businesses[0].id) : 'all';
+  const [filterBiz, setFilterBiz] = useState(defaultBizId);
   const openLightbox = (images, index = 0) => setLightbox({ images, index });
   const closeLightbox = () => setLightbox(null);
   const fmt = (n) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2 }).format(Number(n) || 0);
@@ -4712,7 +4716,7 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
 
   const handleReprint = async (pv) => {
     const biz = businesses.find(b => String(b.id) === String(pv.business_id));
-    const settings = await pvAPI.getSettings().catch(() => ({}));
+    const settings = await pvAPI.getSettings(pv.business_id).catch(() => ({}));
     generatePVPDF(pv, biz, settings);
   };
 
@@ -4986,7 +4990,7 @@ const PaymentVouchersPage = ({ businesses, user, onSuccess }) => {
       {/* Settings Drawer */}
       <Drawer isOpen={settingsOpen} onClose={() => setSettingsOpen(false)}
         title="ตั้งค่าใบสำคัญจ่าย" description="ตัวย่อเลขที่, ลายเซ็นผู้อนุมัติ และผู้จ่ายเงิน">
-        {settingsOpen && <PVSettings onClose={(saved) => { setSettingsOpen(false); if (saved) onSuccess('บันทึกการตั้งค่าสำเร็จ ✅'); }} />}
+        {settingsOpen && <PVSettings bizId={filterBiz !== 'all' ? filterBiz : null} onClose={(saved) => { setSettingsOpen(false); if (saved) onSuccess('บันทึกการตั้งค่าสำเร็จ ✅'); }} />}
       </Drawer>
 
       {/* ── Lightbox Modal ── */}
@@ -5513,7 +5517,7 @@ const RVForm = ({ businesses, editRv, user, onClose }) => {
 };
 
 // ─── PV SETTINGS ────────────────────────────────────
-const PVSettings = ({ onClose }) => {
+const PVSettings = ({ onClose, bizId }) => {
   const [prefix, setPrefix] = useState('PV');
   const [approverName, setApproverName] = useState('');
   const [payerName, setPayerName] = useState('');
@@ -5522,7 +5526,7 @@ const PVSettings = ({ onClose }) => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    pvAPI.getSettings().then(s => {
+    pvAPI.getSettings(bizId).then(s => {
       if (s) {
         setPrefix(s.prefix || 'PV');
         setApproverName(s.approver_name || '');
@@ -5531,7 +5535,7 @@ const PVSettings = ({ onClose }) => {
         setPayerSig(s.payer_sig || '');
       }
     }).catch(() => {});
-  }, []);
+  }, [bizId]);
 
   const handleSigUpload = (e, who) => {
     const file = e.target.files[0]; if (!file) return;
@@ -5547,7 +5551,7 @@ const PVSettings = ({ onClose }) => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await pvAPI.saveSettings({ prefix, approver_name: approverName, payer_name: payerName, approver_sig: approverSig, payer_sig: payerSig });
+      await pvAPI.saveSettings({ business_id: bizId || null, prefix, approver_name: approverName, payer_name: payerName, approver_sig: approverSig, payer_sig: payerSig });
       onClose(true);
     } catch { onClose(false); }
     finally { setSaving(false); }

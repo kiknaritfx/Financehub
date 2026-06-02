@@ -81,7 +81,7 @@ export const pvAPI = {
   create: (data) => request('/payment-vouchers', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => request(`/payment-vouchers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id) => request(`/payment-vouchers/${id}`, { method: 'DELETE' }),
-  getSettings: () => request('/voucher-settings/pv'),
+  getSettings: (bizId) => request(`/voucher-settings/pv${bizId ? '?business_id=' + bizId : ''}`),
   saveSettings: (data) => request('/voucher-settings/pv', { method: 'POST', body: JSON.stringify(data) }),
 };
 
