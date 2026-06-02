@@ -4536,12 +4536,16 @@ const PVEditModal = ({ pv, businesses, onClose, onSaved }) => {
     if (!payTo.trim()) return alert('กรุณาระบุชื่อร้านค้า/ผู้รับเงิน');
     setSaving(true);
     try {
+      const numAmount = Number(amount);
+      const numWhtRate = Number(pv.wht_rate) || 0;
+      const numWhtAmt = Math.round(numAmount * numWhtRate / 100 * 100) / 100;
       const updated = {
         ...pv,
         pay_to: payTo, doc_ref: docRef, description,
-        amount: Number(amount), pay_method: payMethod,
+        amount: numAmount, pay_method: payMethod,
         cheque_no: chequeNo, cheque_date: chequeDate,
         branch_no: branchNo, issue_date: issueDate, note,
+        net_amount: numAmount - numWhtAmt,
       };
       await pvAPI.update(pv.id, updated);
       onSaved(updated);
